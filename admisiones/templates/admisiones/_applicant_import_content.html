@@ -1,0 +1,93 @@
+{% if form %}
+<form class="management-form" method="post" enctype="multipart/form-data" action="{{ request.path }}" data-management-form data-title="Importar aspirantes" novalidate>
+  {% csrf_token %}
+  <div class="management-form-body">
+    {% if error %}<div class="notice notice-error" role="alert">{{ error }}</div>{% endif %}
+    {{ form.non_field_errors }}
+    <div class="field-grid">
+      {% for field in form %}
+        <div class="field{% if field.name == 'file' %} field-full{% endif %}{% if field.errors %} field-invalid{% endif %}">
+          {{ field.label_tag }}
+          {{ field }}
+          {% if field.help_text %}<small class="field-help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+    <p><a href="{% url 'applicant_import_template' %}">Descargar plantilla Excel</a></p>
+  </div>
+  <div class="management-form-actions">
+    {% if as_dialog %}<button class="button button-secondary" type="button" data-management-close>Cancelar</button>
+    {% else %}<a class="button button-secondary" href="{% url 'applicant_list' %}">Cancelar</a>{% endif %}
+    <button class="button button-primary" type="submit">Vista previa</button>
+  </div>
+</form>
+{% else %}
+{% if completed %}
+<div class="management-form" data-management-form data-title="Importación completada">
+{% else %}
+<form class="management-form" method="post" action="{{ request.path }}" data-management-form data-title="Vista previa de importación" novalidate>
+  {% csrf_token %}
+  <input type="hidden" name="nonce" value="{{ nonce }}">
+  <input type="hidden" name="action" value="confirm">
+{% endif %}
+  <div class="management-form-body">
+    <p>{{ program.name }} · {{ call.name }}</p>
+    <dl id="import-counts" class="summary-grid">
+      {% if completed %}
+        <div><dt>Expedientes creados</dt><dd>{{ counts.created }}</dd></div>
+        <div><dt>Expedientes existentes</dt><dd>{{ counts.existing }}</dd></div>
+        <div><dt>Aspirantes creados</dt><dd>{{ counts.people_created }}</dd></div>
+        <div><dt>Aspirantes existentes</dt><dd>{{ counts.people_existing }}</dd></div>
+      {% else %}
+        <div><dt>Filas válidas</dt><dd>{{ counts.valid }}</dd></div>
+        <div><dt>Expedientes existentes</dt><dd>{{ counts.existing }}</dd></div>
+      {% endif %}
+      <div><dt>Filas con errores</dt><dd>{{ counts.errors }}</dd></div>
+    </dl>
+    {% if not completed %}
+      <p>{% if counts.valid %}Se guardarán las filas válidas. Corrige los errores del CSV para importar el resto.{% else %}Este lote no creará expedientes. Carga un archivo corregido.{% endif %}</p>
+    {% endif %}
+    <div class="table-frame queue-table-frame">
+      <table class="data-table queue-table management-table">
+        <caption class="sr-only">Resultado por fila del archivo CSV</caption>
+        <thead>
+          <tr><th scope="col">Fila</th><th scope="col">Aspirante</th><th scope="col">Contacto</th><th scope="col">Estado</th><th scope="col">Detalle</th></tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td data-label="Fila"><strong>Fila {{ row.number }}</strong></td>
+              <td data-label="Aspirante">
+                {{ row.data.first_name }} {{ row.data.second_name }} {{ row.data.last_name }} {{ row.data.second_last_name }}
+                <small>{{ row.data.identification_type|truncatechars:12 }} {{ row.data.identification_number|truncatechars:32 }}</small>
+              </td>
+              <td data-label="Contacto">{{ row.data.email|truncatechars:64 }}<small>{{ row.data.phone|truncatechars:32 }}</small></td>
+              <td data-label="Estado">
+                {% if row.status == 'valid' %}<span class="status status-approved">Válida</span>
+                {% elif row.status == 'created' %}<span class="status status-approved">Creado</span>
+                {% elif row.status == 'existing' %}<span class="status">Existente</span>
+                {% else %}<span class="status status-correction">Error</span>{% endif %}
+              </td>
+              <td data-label="Detalle">
+                {% if row.message %}<p>{{ row.message }}</p>{% endif %}
+                {% if row.application.visible_to_reviewer %}<a href="{% url 'reviewer_application' public_id=row.application.public_id %}">Ver expediente</a>
+                {% elif row.person %}<a href="{% url 'applicant_detail' public_id=row.person.public_id %}">Ver aspirante</a>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="management-form-actions">
+    {% if completed %}
+      <a class="button button-primary" href="{% url 'applicant_list' %}">Ver aspirantes</a>
+    {% else %}
+      {% if as_dialog %}<button class="button button-secondary" type="button" data-management-close>Cancelar</button>
+      {% else %}<a class="button button-secondary" href="{% url 'applicant_list' %}">Cancelar</a>{% endif %}
+      <button class="button button-primary" type="submit"{% if not counts.valid %} disabled{% endif %}>Confirmar importación</button>
+    {% endif %}
+  </div>
+{% if completed %}</div>{% else %}</form>{% endif %}
+{% endif %}

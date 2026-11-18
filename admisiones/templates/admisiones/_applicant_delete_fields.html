@@ -1,0 +1,2 @@
+{% if form.non_field_errors %}<div class="notice notice-error" role="alert">{% for message in form.non_field_errors %}{{ message }}{% endfor %}</div>{% endif %}
+<p>Se eliminará el registro de <strong>{{ person.get_full_name }}</strong>. Esta acción no se puede deshacer.</p>

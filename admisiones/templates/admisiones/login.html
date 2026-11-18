@@ -1,0 +1,22 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Ingresar · Asistente de revisión documental{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <header class="auth-heading">
+    <h1>Ingresar</h1>
+    <p>Consulta tus solicitudes y documentos.</p>
+  </header>
+  <section class="auth-panel" aria-label="Datos de ingreso">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="notice notice-error" role="alert">{% for message in form.non_field_errors %}{{ message }}{% endfor %}</div>{% endif %}
+      {% for field in form %}<div class="field{% if field.errors %} field-invalid{% endif %}">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}
+      <button class="button button-primary button-wide" type="submit">Ingresar</button>
+    </form>
+  </section>
+  <nav class="auth-links" aria-label="Ayuda para ingresar">
+    <a href="{% url 'password_reset' %}">Olvidé mi contraseña</a>
+    <a href="{% url 'register' %}">Crear cuenta de aspirante</a>
+  </nav>
+</div>
+{% endblock %}

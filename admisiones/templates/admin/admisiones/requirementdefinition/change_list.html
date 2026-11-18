@@ -1,0 +1,5 @@
+{% extends "admin/change_list.html" %}
+{% block content %}
+<p>Los cambios en los requisitos se aplican a las solicitudes nuevas. Las solicitudes existentes conservan los requisitos que tenían al crearse.</p>
+{{ block.super }}
+{% endblock %}

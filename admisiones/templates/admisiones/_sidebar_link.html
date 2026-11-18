@@ -1,0 +1,4 @@
+<a class="sidebar-link{% if current == key %} is-current{% endif %}" href="{{ destination }}" title="{{ label }}"{% if current == key %} aria-current="page"{% endif %}{% if key == 'new' %} data-management-dialog="{{ label }}" aria-haspopup="dialog"{% endif %}>
+  <svg class="sidebar-icon" aria-hidden="true" viewBox="0 0 24 24"><use href="#nav-{{ icon }}"/></svg>
+  <span class="sidebar-label">{{ label }}</span>
+</a>

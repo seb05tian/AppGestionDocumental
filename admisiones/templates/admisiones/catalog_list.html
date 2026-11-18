@@ -1,0 +1,62 @@
+{% extends "admisiones/base.html" %}
+{% block title %}{{ title }} · Administración{% endblock %}
+{% block page_class %} reviewer-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current=catalog %}
+  <div class="reviewer-content">
+    <header class="page-heading">
+      <div>
+        <h1>{{ title }}</h1>
+      </div>
+      <a class="button button-primary" href="{% url 'administration_create' catalog=catalog %}" data-management-dialog="Crear {{ singular }}" aria-haspopup="dialog">Crear {{ singular }}</a>
+    </header>
+    {% url 'administration_catalog' catalog=catalog as filter_url %}
+    {% with filter_label='Filtrar '|add:title|lower %}{% include "admisiones/_filter_panel.html" %}{% endwith %}
+    <div class="table-frame management-table-frame">
+      <table class="data-table management-table compact-table">
+        <caption class="sr-only">{{ title }}</caption>
+        <thead><tr>
+          <th scope="col">{{ singular|capfirst }}</th>
+          {% if catalog == 'convocatorias' %}<th scope="col">Apertura</th><th scope="col">Cierre</th>
+          {% elif catalog == 'requisitos' %}<th scope="col">Convocatoria</th><th scope="col">Obligatoriedad</th>{% endif %}
+          <th scope="col">Estado</th><th scope="col" class="management-actions">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for item in records %}
+            <tr>
+              <th scope="row" data-label="{{ singular|capfirst }}">{{ item.name }}{% if catalog == 'requisitos' %}<small>{{ item.code }}</small>{% endif %}</th>
+              {% if catalog == 'convocatorias' %}
+                <td data-label="Apertura">{{ item.opens_at|date:"j M Y"|default:"Sin fecha" }}</td>
+                <td data-label="Cierre">{{ item.closes_at|date:"j M Y"|default:"Sin fecha" }}</td>
+              {% elif catalog == 'requisitos' %}
+                <td data-label="Convocatoria">{{ item.call|default_if_none:"General" }}</td>
+                <td data-label="Obligatoriedad">{% if item.required %}Obligatorio{% else %}Opcional{% endif %}</td>
+              {% endif %}
+              <td data-label="Estado"><span class="status{% if item.active %} status-approved{% endif %}">{% if item.active %}Activo{% else %}Desactivado{% endif %}</span></td>
+              <td class="management-actions">
+                <div class="row-actions">
+                  {% url 'administration_edit' catalog=catalog pk=item.pk as edit_url %}
+                  {% with action_label='Editar '|add:item.name modal_title='Editar '|add:singular %}
+                    {% include 'admisiones/_management_row_action.html' with destination=edit_url label=action_label modal_title=modal_title icon='edit' %}
+                  {% endwith %}
+                  {% url 'administration_delete' catalog=catalog pk=item.pk as delete_url %}
+                  {% with action_label='Eliminar '|add:item.name %}
+                    {% include 'admisiones/_management_row_action.html' with destination=delete_url label=action_label icon='delete' tone='danger' %}
+                  {% endwith %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr class="management-table-empty"><td colspan="{% if catalog == 'programas' %}3{% else %}5{% endif %}">
+              {% if filter_query %}<strong>No encontramos registros</strong><p>Prueba con otros criterios o limpia los filtros.</p>
+              {% else %}<strong>El catálogo está vacío</strong><p>Usa «Crear {{ singular }}» para agregar el primer registro.</p>{% endif %}
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% include 'admisiones/_management_pagination.html' with label=title|lower %}
+    </div>
+  </div>
+</div>
+{% endblock %}

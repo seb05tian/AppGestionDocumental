@@ -1,0 +1,56 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Aspirantes · Admisiones{% endblock %}
+{% block page_class %} reviewer-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current="applicants" %}
+  <div class="reviewer-content">
+    <section class="page-heading">
+      <div><h1>Aspirantes</h1><p>Busca una persona para consultar sus expedientes.</p></div>
+      <div class="application-actions">
+        <a class="button button-secondary" href="{% url 'applicant_import' %}" data-management-dialog="Importar aspirantes" aria-haspopup="dialog">Importar aspirantes</a>
+        <a class="button button-primary" href="{% url 'applicant_new' %}" data-management-dialog="Nuevo aspirante" aria-haspopup="dialog">Nuevo aspirante</a>
+      </div>
+    </section>
+    {% url 'applicant_list' as filter_url %}
+    {% include "admisiones/_filter_panel.html" with filter_label='Filtrar aspirantes' %}
+    <div class="table-frame management-table-frame">
+      <table class="data-table management-table compact-table">
+        <caption class="sr-only">Aspirantes registrados</caption>
+        <thead><tr><th scope="col">Aspirante</th><th scope="col">Identificación</th><th scope="col">Correo</th><th scope="col" class="management-actions">Acciones</th></tr></thead>
+        <tbody>
+          {% for person in people %}
+            <tr>
+              <th scope="row" data-label="Aspirante">{{ person.get_full_name }}</th>
+              <td data-label="Identificación">{{ person.get_identification_type_display }}<small>{{ person.identification_number }}</small></td>
+              <td data-label="Correo">{{ person.email }}</td>
+              <td class="management-actions">
+                <div class="row-actions">
+                  {% url 'applicant_detail' public_id=person.public_id as person_url %}
+                  {% with action_label='Ver detalle de '|add:person.get_full_name %}
+                    {% include 'admisiones/_management_row_action.html' with destination=person_url label=action_label modal_title='Aspirante' %}
+                  {% endwith %}
+                  {% url 'applicant_edit' public_id=person.public_id as edit_url %}
+                  {% with action_label='Editar '|add:person.get_full_name %}
+                    {% include 'admisiones/_management_row_action.html' with destination=edit_url label=action_label modal_title='Editar aspirante' icon='edit' %}
+                  {% endwith %}
+                  {% url 'applicant_delete' public_id=person.public_id as delete_url %}
+                  {% with action_label='Eliminar '|add:person.get_full_name %}
+                    {% include 'admisiones/_management_row_action.html' with destination=delete_url label=action_label modal_title='Eliminar aspirante' icon='delete' tone='danger' %}
+                  {% endwith %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr class="management-table-empty"><td colspan="4">
+              {% if filter_query %}<strong>No encontramos aspirantes</strong><p>Prueba con otros criterios o limpia los filtros.</p>
+              {% else %}<strong>No hay aspirantes registrados</strong><p>Registra una persona para abrir su primer expediente.</p>{% endif %}
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% include 'admisiones/_management_pagination.html' with records=people label='aspirantes' %}
+    </div>
+  </div>
+</div>
+{% endblock %}

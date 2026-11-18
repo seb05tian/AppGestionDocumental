@@ -1,0 +1,25 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Mi perfil · Asistente de revisión documental{% endblock %}
+{% block content %}
+<section class="page-heading"><div><h1>Mi perfil</h1></div></section>
+<section class="profile-card" aria-labelledby="profile-name">
+  <div class="profile-identity">
+    <span class="profile-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg></span>
+    <div>
+      <h2 id="profile-name">{% if applicant %}{{ applicant.get_full_name }}{% else %}{{ user.get_full_name|default:user.email }}{% endif %}</h2>
+      <p>{{ user.get_role_display }}</p>
+    </div>
+  </div>
+  <dl class="person-facts">
+    <div><dt>Correo</dt><dd>{{ user.email }}</dd></div>
+    {% if applicant %}
+      <div><dt>Identificación</dt><dd>{{ applicant.get_identification_type_display }} {{ applicant.identification_number }}</dd></div>
+      <div><dt>Teléfono</dt><dd>{{ applicant.phone }}</dd></div>
+      <div><dt>Acceso al portal</dt><dd>{% if applicant.portal_verified_at %}Verificado{% else %}Pendiente de verificación{% endif %}</dd></div>
+    {% endif %}
+  </dl>
+  <div class="profile-actions">
+    <a class="button button-secondary" href="{% url 'password_change' %}">Cambiar contraseña</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Crear cuenta · Asistente de revisión documental{% endblock %}
+{% block content %}
+<div class="auth-page auth-wide">
+  <header class="auth-heading">
+    <h1>Crear cuenta</h1>
+    <p>Necesitas una cuenta de aspirante para solicitar un programa.</p>
+  </header>
+  <section class="auth-panel" aria-label="Datos de registro">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="notice notice-error" role="alert">{% for message in form.non_field_errors %}{{ message }}{% endfor %}</div>{% endif %}
+      <div class="field-grid">
+      {% for field in form %}
+        {% if field.name != "privacy_acceptance" %}
+          {% if field.name == "first_name" %}<h2 class="form-section-heading">Datos personales</h2>{% endif %}
+          {% if field.name == "email" %}<h2 class="form-section-heading">Contacto</h2>{% endif %}
+          {% if field.name == "password1" %}<h2 class="form-section-heading">Acceso</h2>{% endif %}
+          <div class="field{% if field.name == 'password1' or field.name == 'password2' %} field-full{% endif %}{% if field.errors %} field-invalid{% endif %}">
+            {{ field.label_tag }}{{ field }}
+            {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            {% if field.help_text %}<small class="field-help">{{ field.help_text }}</small>{% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+      </div>
+      <div class="privacy-box">
+        <h3>Aviso de privacidad</h3>
+        {% if privacy_notice %}<p>{{ privacy_notice.text }}</p>{% else %}<p>El registro está pausado hasta que la institución configure el aviso de privacidad.</p>{% endif %}
+        <div class="checkbox-field{% if form.privacy_acceptance.errors %} field-invalid{% endif %}">{{ form.privacy_acceptance }}{{ form.privacy_acceptance.label_tag }}</div>
+        {% for error in form.privacy_acceptance.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+      </div>
+      <button class="button button-primary button-wide" type="submit"{% if not privacy_notice %} disabled{% endif %}>Crear cuenta</button>
+    </form>
+  </section>
+  <p class="auth-links">¿Ya tienes cuenta? <a href="{% url 'login' %}">Ingresar</a></p>
+</div>
+{% endblock %}

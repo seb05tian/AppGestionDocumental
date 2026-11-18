@@ -1,0 +1,40 @@
+{% extends "admisiones/base.html" %}
+{% block title %}{% if request.resolver_match.url_name == 'administration_home' %}Panel de administración{% else %}Bandeja de admisiones{% endif %} · Asistente de revisión documental{% endblock %}
+{% block page_class %} reviewer-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current="inbox" %}
+  <div class="reviewer-content">
+    {% url request.resolver_match.url_name as inbox_url %}
+    <section class="page-heading">
+      <div><h1>{% if request.resolver_match.url_name == 'administration_home' %}Panel de administración{% else %}Bandeja de admisiones{% endif %}</h1></div>
+      <div class="application-actions"><span class="queue-total">{{ total_count }} expedientes</span><a class="button button-primary" href="{% url 'applicant_new' %}" data-management-dialog="Nuevo aspirante" aria-haspopup="dialog">Nuevo aspirante</a></div>
+    </section>
+    {% include "admisiones/_filter_panel.html" with filter_url=inbox_url filter_label='Filtrar expedientes' wide_filters=True %}
+    <div class="queue-toolbar"><span>{{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ total_count }}</span><a class="button button-secondary button-small" href="{% url 'reviewer_export' %}{% if filter_query %}?{{ filter_query }}{% endif %}">Exportar CSV</a></div>
+    {% if applications %}
+    <div class="table-frame queue-table-frame"><table class="data-table queue-table management-table"><caption class="sr-only">Expedientes que requieren seguimiento por admisiones</caption>
+      <thead><tr><th scope="col">Aspirante e identificación</th><th scope="col">Programa / convocatoria</th><th scope="col">Estado</th><th scope="col">Documentos</th><th scope="col">Alertas</th><th scope="col">Enviado</th><th scope="col">Revisor</th><th scope="col" class="management-actions">Acciones</th></tr></thead>
+      <tbody>{% for application in applications %}<tr>
+        <td data-label="Aspirante"><strong>{{ application.applicant.get_full_name }}</strong><small>{{ application.applicant.get_identification_type_display }} · {{ application.applicant.identification_number }}</small></td>
+        <td data-label="Programa / convocatoria">{{ application.program.name }}<small>{{ application.call.name }}</small></td>
+        <td data-label="Estado"><span class="status status-{{ application.state }}">{{ application.get_state_display }}</span></td>
+        <td data-label="Documentos">{{ application.approved_count }} aprobados · {{ application.uploaded_count }}/{{ application.required_count }} cargados</td>
+        <td data-label="Alertas">{% if application.alert_count %}<span class="status status-alert">{{ application.alert_count }} con alerta</span>{% else %}<span class="subtle-text">Sin alertas</span>{% endif %}</td>
+        <td data-label="Enviado">{% if application.submitted_at %}{{ application.submitted_at|date:"j M Y" }}{% else %}—{% endif %}</td>
+        <td data-label="Revisor">{% if application.assigned_reviewer %}{{ application.assigned_reviewer.get_full_name|default:application.assigned_reviewer.email }}{% else %}<span class="subtle-text">Sin asignar</span>{% endif %}</td>
+        <td class="management-actions">
+          {% url 'reviewer_application' public_id=application.public_id as application_url %}
+          {% with action_label='Ver detalle de '|add:application.applicant.get_full_name %}{% include 'admisiones/_management_row_action.html' with destination=application_url label=action_label %}{% endwith %}
+        </td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% if page_obj.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Páginas de expedientes">
+      {% if page_obj.has_previous %}<a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+      <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>{% endif %}
+    </nav>{% endif %}
+    {% else %}<section class="empty-state">{% if filter_query %}<h2>No hay expedientes para estos filtros</h2><p>Prueba con otros criterios o limpia los filtros.</p>{% else %}<h2>Aún no hay expedientes</h2>{% endif %}</section>{% endif %}
+  </div>
+</div>
+{% endblock %}

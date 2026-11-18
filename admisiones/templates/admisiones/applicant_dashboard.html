@@ -1,0 +1,18 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Mis solicitudes · Asistente de revisión documental{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div><h1>Mis solicitudes</h1><p>Consulta el avance y los documentos de cada convocatoria.</p></div>
+  <a class="button button-primary" href="/aspirante/solicitud/nueva/">Crear solicitud</a>
+</section>
+{% if applications %}
+<div class="application-list">{% for application in applications %}
+  <article class="application-row">
+    <div><h2>{{ application.program.name }}</h2><p>{{ application.call.name }} · Actualizado {{ application.updated_at|date:"j M Y" }}</p></div>
+    <div class="application-actions"><span class="status status-{{ application.state }}">{{ application.get_state_display }}</span><a class="row-action" href="{% url 'applicant_application' public_id=application.public_id %}">Ver expediente<span class="sr-only"> de {{ application.program.name }} · {{ application.call.name }}</span></a></div>
+  </article>
+{% endfor %}</div>
+{% else %}
+<section class="empty-state"><span class="empty-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M8 5h11l5 5v17H8z" stroke="currentColor" stroke-width="1.7"/><path d="M18 5v6h6M12 16h8M12 20h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16 24v5m-2.5-2.5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><h2>Aún no tienes solicitudes</h2><a class="button button-primary" href="/aspirante/solicitud/nueva/">Crear solicitud</a></section>
+{% endif %}
+{% endblock %}

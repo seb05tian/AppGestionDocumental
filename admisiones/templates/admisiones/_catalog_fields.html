@@ -1,0 +1,18 @@
+{% if form.non_field_errors %}<div class="notice notice-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+<div class="field-grid">
+  {% for field in form %}
+    {% if field.name == 'active' or field.name == 'required' %}
+      <div class="checkbox-field catalog-check">{{ field }}{{ field.label_tag }}{{ field.errors }}</div>
+    {% elif field.use_fieldset %}
+      <fieldset class="field-full catalog-options"{% if field.errors %} aria-describedby="{{ field.auto_id }}_error"{% endif %}>
+        {{ field.legend_tag }}{{ field }}{{ field.errors }}
+      </fieldset>
+    {% else %}
+      <div class="field{% if field.name == 'name' %} field-full{% endif %}{% if field.errors %} field-invalid{% endif %}">
+        {{ field.label_tag }}{{ field }}
+        {% if field.help_text %}<p class="field-help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</p>{% endif %}
+        {{ field.errors }}
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>

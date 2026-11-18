@@ -1,0 +1,17 @@
+<div data-management-form data-title="{{ person.get_full_name }}" class="person-detail">
+  <dl class="person-facts">
+    <div><dt>Identificación</dt><dd>{{ person.get_identification_type_display }} {{ person.identification_number }}</dd></div>
+    <div><dt>Correo</dt><dd>{{ person.email }}</dd></div>
+    <div><dt>Teléfono</dt><dd>{{ person.phone }}</dd></div>
+    <div><dt>Acceso al portal</dt><dd>{% if person.user_id %}Con acceso{% else %}Sin acceso{% endif %}</dd></div>
+  </dl>
+  <h3>Expedientes</h3>
+  {% for application in applications %}
+    <article class="application-row">
+      <div><h4>{{ application.program.name }}</h4><p>{{ application.call.name }}</p></div>
+      <div class="application-actions"><span class="status status-{{ application.state }}">{{ application.get_state_display }}</span><a class="row-action" href="{% url 'reviewer_application' public_id=application.public_id %}">Abrir expediente<span class="sr-only"> de {{ application.program.name }}</span></a></div>
+    </article>
+  {% empty %}
+    <p class="subtle-text">Esta persona aún no tiene expedientes.</p>
+  {% endfor %}
+</div>

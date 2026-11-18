@@ -1,0 +1,38 @@
+{% extends "admisiones/base.html" %}
+{% block title %}{% if person %}{{ person.get_full_name }}{% else %}Nuevo aspirante{% endif %} · Admisiones{% endblock %}
+{% block page_class %} reviewer-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current="applicants" %}
+  <div class="reviewer-content">
+    <nav class="breadcrumbs" aria-label="Ruta"><a href="{% url 'applicant_list' %}">Aspirantes</a><span aria-hidden="true">/</span><span>{% if person %}Ficha{% else %}Nuevo aspirante{% endif %}</span></nav>
+    <section class="page-heading">
+      {% if person %}
+        <div><h1>{{ person.get_full_name }}</h1><p>{{ person.get_identification_type_display }} {{ person.identification_number }} · {{ person.email }} · {{ person.phone }}</p></div>
+        <span class="status">{% if person.user_id %}Con acceso al portal{% else %}Sin cuenta de acceso{% endif %}</span>
+      {% else %}
+        <div><h1>Nuevo aspirante</h1></div>
+      {% endif %}
+    </section>
+    {% if person %}
+      <section class="detail-section" aria-labelledby="person-applications">
+        <h2 id="person-applications">Expedientes</h2>
+        {% if applications %}
+          <div class="application-list">
+            {% for application in applications %}
+              <article class="application-row">
+                <div><h3>{{ application.program.name }}</h3><p>{{ application.call.name }}</p></div>
+                <div class="application-actions"><span class="status status-{{ application.state }}">{{ application.get_state_display }}</span><a class="row-action" href="{% url 'reviewer_application' public_id=application.public_id %}">Abrir expediente<span class="sr-only"> de {{ application.program.name }} · {{ application.call.name }}</span></a></div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}<p>No hay expedientes disponibles para admisiones.</p>{% endif %}
+      </section>
+    {% endif %}
+    <section class="intake-panel" aria-labelledby="intake-title">
+      <h2 id="intake-title">{% if person %}Crear otro expediente{% else %}Datos del aspirante{% endif %}</h2>
+      {% include "admisiones/_management_form.html" %}
+    </section>
+  </div>
+</div>
+{% endblock %}

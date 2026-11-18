@@ -1,0 +1,13 @@
+<form class="management-form" method="post" action="{{ request.path }}" data-management-form data-title="{{ form_title }}" novalidate>
+  {% csrf_token %}
+  {% if record_version %}<input type="hidden" name="record_version" value="{{ record_version }}">{% endif %}
+  <div class="management-form-body">
+    {% if as_dialog and form_description %}<p class="management-form-description">{{ form_description }}</p>{% endif %}
+    {% include fields_template %}
+  </div>
+  <div class="management-form-actions">
+    {% if as_dialog %}<button class="button button-secondary" type="button" data-management-close>Cancelar</button>
+    {% else %}<a class="button button-secondary" href="{{ cancel_url }}">{{ cancel_label }}</a>{% endif %}
+    <button class="button {{ submit_class|default:'button-primary' }}" type="submit"{% if record_conflict %} disabled{% endif %}>{{ submit_label }}</button>
+  </div>
+</form>

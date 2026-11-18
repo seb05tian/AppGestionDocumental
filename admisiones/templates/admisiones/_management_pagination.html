@@ -1,0 +1,12 @@
+{% if records %}
+  <div class="management-table-footer">
+    <span>{{ records.start_index }}–{{ records.end_index }} de {{ records.paginator.count }}</span>
+    {% if records.has_other_pages %}
+      <nav aria-label="Páginas de {{ label }}" class="management-page-links">
+        {% if records.has_previous %}<a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ records.previous_page_number }}">Anterior</a>{% endif %}
+        <span>Página {{ records.number }} de {{ records.paginator.num_pages }}</span>
+        {% if records.has_next %}<a href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ records.next_page_number }}">Siguiente</a>{% endif %}
+      </nav>
+    {% endif %}
+  </div>
+{% endif %}

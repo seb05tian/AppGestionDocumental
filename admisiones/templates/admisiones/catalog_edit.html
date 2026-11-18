@@ -1,0 +1,12 @@
+{% extends "admisiones/base.html" %}
+{% block title %}{{ title }} · Administración{% endblock %}
+{% block page_class %} reviewer-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current=catalog %}
+  <div class="reviewer-content">
+    <header class="page-heading"><div><h1>{{ title }}</h1>{% if form_description %}<p>{{ form_description }}</p>{% endif %}</div></header>
+    <div class="intake-panel catalog-form">{% include "admisiones/_management_form.html" %}</div>
+  </div>
+</div>
+{% endblock %}

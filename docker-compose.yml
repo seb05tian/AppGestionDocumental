@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-asistente}
+      POSTGRES_USER: ${POSTGRES_USER:-asistente}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-asistente_dev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-asistente}:${POSTGRES_PASSWORD:-asistente_dev}@db:5432/${POSTGRES_DB:-asistente}
+      PRIVATE_MEDIA_ROOT: /data/private
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - private-data:/data/private
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-asistente}:${POSTGRES_PASSWORD:-asistente_dev}@db:5432/${POSTGRES_DB:-asistente}
+      PRIVATE_MEDIA_ROOT: /data/private
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+    command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--access-logfile", "-"]
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - private-data:/data/private
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-asistente}:${POSTGRES_PASSWORD:-asistente_dev}@db:5432/${POSTGRES_DB:-asistente}
+      PRIVATE_MEDIA_ROOT: /data/private
+    command: ["python", "manage.py", "run_worker", "--poll-interval", "1"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - private-data:/data/private
+
+volumes:
+  postgres-data:
+  private-data:

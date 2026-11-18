@@ -1,0 +1,12 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Importar aspirantes · Asistente de revisión documental{% endblock %}
+{% block page_class %} reviewer-page import-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current="applicants" %}
+  <div class="reviewer-content">
+    <header class="page-heading"><div><h1>Importar aspirantes</h1></div></header>
+    {% include "admisiones/_applicant_import_content.html" %}
+  </div>
+</div>
+{% endblock %}

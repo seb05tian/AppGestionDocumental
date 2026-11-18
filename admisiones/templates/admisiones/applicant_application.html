@@ -1,0 +1,38 @@
+{% extends "admisiones/base.html" %}
+{% block title %}{{ application.program.name }} · Asistente de revisión documental{% endblock %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="Ruta"><a href="{% url 'applicant_dashboard' %}">Mis solicitudes</a><span aria-hidden="true">/</span><span>Expediente</span></nav>
+<section class="page-heading">
+  <div><h1>{{ application.program.name }}</h1><p class="detail-context">{{ application.call.name }}</p><p>Creado {{ application.created_at|date:"j M Y" }} · Actualizado {{ application.updated_at|date:"j M Y, H:i" }}</p></div>
+  <span class="status status-{{ application.state }}">{{ application.get_state_display }}</span>
+</section>
+<section class="applicant-summary" aria-labelledby="applicant-info-title">
+  <div><h2 id="applicant-info-title">Datos del aspirante</h2><p><strong>{{ application.applicant.get_full_name }}</strong></p><p>{{ application.applicant.get_identification_type_display }} · {{ application.applicant.identification_number }}</p><p>{{ application.applicant.email }} · {{ application.applicant.phone }}</p></div>
+  <div class="progress-block"><span>Documentos cargados</span><strong>{{ uploaded_count }} de {{ required_count }}</strong><progress value="{{ uploaded_count }}" max="{{ required_count|default:1 }}" aria-label="Documentos cargados"></progress></div>
+</section>
+{% if application.state == 'correction' %}<div class="notice notice-warning" role="status"><strong>Hay correcciones pendientes.</strong> Reemplaza los documentos observados y vuelve a enviar el expediente.</div>{% endif %}
+{% if application.state == 'approved' %}<div class="notice notice-success" role="status"><strong>Documentación aprobada.</strong> Esta confirmación indica que se revisó la carpeta documental; no es una decisión de admisión académica.</div>{% endif %}
+<section class="section-heading"><div><h2>Documentos requeridos</h2><p>Carga un archivo por requisito. Los formatos permitidos son PDF, JPG y PNG; máximo {{ max_upload_mb }} MB por archivo.</p></div></section>
+<div class="document-list">
+{% for slot in requirements %}
+  <article class="document-item">
+    <div class="document-title"><div><h3>{{ slot.name }}{% if slot.required %}<span class="required-mark" aria-label="Obligatorio">*</span>{% else %}<span class="optional-label">Opcional</span>{% endif %}</h3></div><span class="status status-{{ slot.document_status }}">{{ slot.document_status_label }}</span></div>
+    {% if slot.current_version %}
+      <div class="file-row"><span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3.75h8l4 4V20H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 4v4h4M9 13h6M9 16h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div class="file-meta"><strong>{{ slot.current_version.original_name }}</strong><span>Versión {{ slot.current_version.version_number }} · {{ slot.current_version.byte_size|filesizeformat }} · {{ slot.current_version.created_at|date:"j M Y, H:i" }}</span></div><a class="button button-secondary button-small" href="{% url 'document_file' version_id=slot.current_version.pk %}" target="_blank" rel="noopener">Ver documento</a></div>
+      {% if slot.current_review.decision == 'correction' %}<div class="correction-note"><strong>Motivo de corrección</strong><p>{{ slot.current_review.reason }}</p></div>{% endif %}
+    {% else %}{% endif %}
+    {% if slot.previous_versions %}<details class="version-history"><summary>Versiones anteriores ({{ slot.previous_versions|length }})</summary><ul>{% for old in slot.previous_versions %}<li><a href="{% url 'document_file' version_id=old.pk %}" target="_blank" rel="noopener">Versión {{ old.version_number }} · {{ old.original_name }}</a> · {{ old.created_at|date:"j M Y, H:i" }}</li>{% endfor %}</ul></details>{% endif %}
+    {% if application.state == 'draft' or application.state == 'correction' %}
+      <form class="upload-form" method="post" enctype="multipart/form-data" action="{% url 'applicant_upload' public_id=application.public_id slot_id=slot.pk %}">
+        {% csrf_token %}<label for="file-{{ slot.pk }}">Cargar documento</label><input id="file-{{ slot.pk }}" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" required><button class="button button-secondary" type="submit">Cargar documento</button>
+      </form>
+    {% endif %}
+  </article>
+{% endfor %}
+</div>
+{% if observations %}<section class="detail-section"><h2>Mensajes de admisiones</h2><ul class="observation-list">{% for item in observations %}<li><p>{{ item.text|linebreaksbr }}</p><small>{{ item.created_at|date:"j M Y, H:i" }}</small></li>{% endfor %}</ul></section>{% endif %}
+{% if application.state == 'draft' or application.state == 'correction' %}
+  <section class="submit-panel"><div><h2>{% if application.state == 'correction' %}¿Ya reemplazaste los documentos observados?{% else %}¿Terminaste de cargar los documentos?{% endif %}</h2></div><form method="post" action="{% url 'applicant_submit' public_id=application.public_id %}">{% csrf_token %}<button class="button button-primary" type="submit"{% if not can_submit %} disabled{% endif %}>{% if application.state == 'correction' %}Reenviar expediente{% else %}Enviar expediente{% endif %}</button></form></section>
+{% endif %}
+<section class="detail-section"><h2>Historial del expediente</h2><ol class="timeline">{% for event in history %}<li><span class="timeline-dot" aria-hidden="true"></span><div><strong>{{ event.get_to_state_display|default:event.to_state }}</strong><small>{{ event.created_at|date:"j M Y, H:i" }}{% if event.actor %} · {{ event.actor.get_full_name|default:event.actor.email }}{% endif %}</small>{% if event.reason %}<p>{{ event.reason }}</p>{% endif %}</div></li>{% empty %}<li>Sin movimientos.</li>{% endfor %}</ol></section>
+{% endblock %}

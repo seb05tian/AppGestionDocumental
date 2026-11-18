@@ -1,0 +1,54 @@
+{% load asset_urls %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}Asistente de revisión documental{% endblock %}</title>
+  <link rel="stylesheet" href="{% versioned_static 'admisiones/css/app.css' %}">
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <header class="topbar">
+    <a class="brand" href="{% url 'home' %}" aria-label="Asistente de revisión documental, inicio">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none"><path d="M8 4.75h10l6 6V27H8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M18 5v6h6M12 17h8M12 21h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m12 25 2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span>Asistente de revisión documental</span>
+    </a>
+    <nav class="topnav" aria-label="Navegación principal">
+      {% if user.is_authenticated %}
+        {% if user.role == 'applicant' %}
+          <a href="{% url 'applicant_dashboard' %}"{% if request.resolver_match.url_name == 'applicant_dashboard' %} aria-current="page"{% endif %}>Mis solicitudes</a>
+          {% if not user.profile.portal_verified_at %}<a href="{% url 'claim_request' %}">Vincular mi expediente</a>{% endif %}
+          <a href="/notificaciones/"{% if request.resolver_match.url_name == 'notification_list' %} aria-current="page"{% endif %}>Notificaciones{% if unread_notifications_count %}<span class="nav-count">{{ unread_notifications_count }}</span>{% endif %}</a>
+        {% elif user.role == 'reviewer' %}
+          <a href="{% url 'reviewer_inbox' %}">Admisiones</a>
+        {% endif %}
+        <details class="profile-menu">
+          <summary class="profile-trigger" aria-label="Menú de perfil" title="Menú de perfil">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg>
+          </summary>
+          <div class="profile-menu-panel">
+            <div class="profile-menu-who"><strong>{{ user.get_full_name|default:user.email }}</strong><small>{{ user.email }}</small></div>
+            <a href="{% url 'profile' %}">Ver perfil</a>
+            <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="profile-menu-item" type="submit">Cerrar sesión</button></form>
+          </div>
+        </details>
+      {% else %}
+        {% if request.resolver_match.url_name != 'login' %}<a href="{% url 'login' %}">Iniciar sesión</a>{% endif %}
+        <a href="{% url 'claim_request' %}">Vincular mi expediente</a>
+        {% if request.resolver_match.url_name != 'register' %}<a class="button button-small" href="{% url 'register' %}">Crear cuenta</a>{% endif %}
+      {% endif %}
+    </nav>
+  </header>
+  <main id="contenido" class="page-wrap{% block page_class %}{% endblock %}" tabindex="-1">
+    {% if messages %}<div class="toast-stack">{% for message in messages %}<div class="toast toast-{{ message.tags|default:'info' }}" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}" data-toast data-toast-duration="{% if message.tags == 'error' %}9000{% else %}5000{% endif %}"><p>{{ message }}</p><button class="toast-close" type="button" aria-label="Cerrar aviso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>{% endfor %}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+<script src="{% versioned_static 'admisiones/js/toast.js' %}" defer></script>
+<script src="{% versioned_static 'admisiones/js/profile_menu.js' %}" defer></script>
+<script src="{% versioned_static 'admisiones/js/select_menu.js' %}" defer></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{% if form.non_field_errors or existing_person %}
+  <div class="notice notice-error" role="alert">
+    {{ form.non_field_errors }}
+    {% if existing_application %}<a href="{% url 'reviewer_application' public_id=existing_application.public_id %}">Ver expediente existente</a>
+    {% elif existing_person %}<a href="{% url 'applicant_detail' public_id=existing_person.public_id %}">Ver aspirante existente</a>{% endif %}
+  </div>
+{% endif %}
+<div class="field-grid">
+  {% for field in form %}
+    {% if not person and field.name == 'program' %}<h3 class="form-section-heading">Programa y convocatoria</h3>{% endif %}
+    <div class="field{% if field.errors %} field-invalid{% endif %}">{{ field.label_tag }}{{ field }}{{ field.errors }}</div>
+  {% endfor %}
+</div>

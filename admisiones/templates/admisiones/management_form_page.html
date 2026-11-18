@@ -1,0 +1,15 @@
+{% extends "admisiones/base.html" %}
+{% block title %}{{ form_title }} · Admisiones{% endblock %}
+{% block page_class %} reviewer-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current="applicants" %}
+  <div class="reviewer-content">
+    <nav class="breadcrumbs" aria-label="Ruta"><a href="{{ cancel_url }}">Aspirantes</a><span aria-hidden="true">/</span><span>{{ form_title }}</span></nav>
+    <section class="page-heading"><div><h1>{{ form_title }}</h1></div></section>
+    <section class="intake-panel">
+      {% include "admisiones/_management_form.html" %}
+    </section>
+  </div>
+</div>
+{% endblock %}

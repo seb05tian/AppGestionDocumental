@@ -1,0 +1,64 @@
+{% load static %}
+<div class="sidebar-slot">
+  <svg class="sidebar-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="nav-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="nav-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/></symbol>
+    <symbol id="nav-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="nav-fold" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+    <symbol id="nav-expedientes" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 11h18"/></symbol>
+    <symbol id="nav-aspirantes" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 5a3 3 0 0 1 0 6m2 3a4 4 0 0 1 3 4v2"/></symbol>
+    <symbol id="nav-nuevo" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2m3-14v6m-3-3h6"/></symbol>
+    <symbol id="nav-importar" viewBox="0 0 24 24"><path d="M3 16v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3M12 16V3m-5 5 5-5 5 5"/></symbol>
+    <symbol id="nav-indicadores" viewBox="0 0 24 24"><path d="M4 4v16h16M9 16v-4m5 4V8m5 8v-6"/></symbol>
+    <symbol id="nav-programas" viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5zM6 11v6c4 3 8 3 12 0v-6m4-2v6"/></symbol>
+    <symbol id="nav-convocatorias" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5h2m4 0h2"/></symbol>
+    <symbol id="nav-requisitos" viewBox="0 0 24 24"><path d="M8 5H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3M8 14l2 2 5-5"/><rect x="8" y="3" width="8" height="4" rx="1"/></symbol>
+  </svg>
+  <button class="sidebar-trigger button button-secondary" type="button" aria-label="Abrir menú de trabajo" aria-controls="staff-navigation-drawer" aria-haspopup="dialog" aria-expanded="false" hidden>
+    <svg class="sidebar-icon" aria-hidden="true" viewBox="0 0 24 24"><use href="#nav-menu"/></svg> Menú de trabajo
+  </button>
+  <aside class="reviewer-sidebar">
+    <div class="sidebar-toolbar">
+      <span class="sidebar-toolbar-title">Módulos</span>
+      <div class="sidebar-tools">
+        <button class="sidebar-control sidebar-search-toggle" type="button" aria-label="Buscar en el menú" aria-controls="staff-navigation-search" aria-expanded="false" title="Buscar en el menú" hidden>
+          <svg class="sidebar-icon" aria-hidden="true" viewBox="0 0 24 24"><use href="#nav-search"/></svg>
+        </button>
+        <button class="sidebar-control sidebar-fold" type="button" aria-label="Contraer menú" aria-controls="staff-navigation-links" aria-expanded="true" title="Contraer menú" hidden>
+          <svg class="sidebar-icon" aria-hidden="true" viewBox="0 0 24 24"><use href="#nav-fold"/></svg>
+        </button>
+        <button class="sidebar-control sidebar-close" type="button" aria-label="Cerrar menú de trabajo" hidden>
+          <svg class="sidebar-icon" aria-hidden="true" viewBox="0 0 24 24"><use href="#nav-close"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sidebar-search field" id="staff-navigation-search" hidden><input type="search" aria-label="Buscar opciones" placeholder="Buscar opciones" autocomplete="off"></div>
+    <nav class="sidebar-nav" id="staff-navigation-links" aria-label="Menú de trabajo">
+      <section aria-labelledby="navigation-admissions">
+        <h2 class="sidebar-title" id="navigation-admissions">Admisiones</h2>
+        {% url 'reviewer_inbox' as inbox_url %}
+        {% url 'applicant_list' as applicants_url %}
+        {% url 'reviewer_indicators' as indicators_url %}
+        {% include 'admisiones/_sidebar_link.html' with destination=inbox_url key='inbox' icon='expedientes' label='Expedientes' %}
+        {% include 'admisiones/_sidebar_link.html' with destination=applicants_url key='applicants' icon='aspirantes' label='Aspirantes' %}
+        {% include 'admisiones/_sidebar_link.html' with destination=indicators_url key='indicators' icon='indicadores' label='Indicadores' %}
+      </section>
+      {% if user.role == 'administrator' %}
+        <section aria-labelledby="navigation-settings">
+          <h2 class="sidebar-title" id="navigation-settings">Configuración</h2>
+          {% url 'administration_catalog' catalog='programas' as programs_url %}
+          {% url 'administration_catalog' catalog='convocatorias' as calls_url %}
+          {% url 'administration_catalog' catalog='requisitos' as requirements_url %}
+          {% include 'admisiones/_sidebar_link.html' with destination=programs_url key='programas' icon='programas' label='Programas' %}
+          {% include 'admisiones/_sidebar_link.html' with destination=calls_url key='convocatorias' icon='convocatorias' label='Convocatorias' %}
+          {% include 'admisiones/_sidebar_link.html' with destination=requirements_url key='requisitos' icon='requisitos' label='Requisitos documentales' %}
+        </section>
+      {% endif %}
+      <p class="sidebar-no-results" role="status" hidden>No se encontraron opciones.</p>
+    </nav>
+  </aside>
+  <dialog class="sidebar-drawer" id="staff-navigation-drawer" aria-label="Menú de trabajo"></dialog>
+</div>
+<script src="{% static 'admisiones/js/staff_navigation.js' %}" defer></script>
+{% include "admisiones/_management_dialog.html" %}
+<script src="{% static 'admisiones/js/management_dialog.js' %}" defer></script>

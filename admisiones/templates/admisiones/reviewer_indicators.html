@@ -1,0 +1,19 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Indicadores · Asistente de revisión documental{% endblock %}
+{% block page_class %} reviewer-page{% endblock %}
+{% block content %}
+<div class="reviewer-layout">
+  {% include "admisiones/_reviewer_sidebar.html" with current="indicators" %}
+  <div class="reviewer-content">
+    <section class="page-heading"><div><h1>Indicadores documentales</h1><p>Calculados con los expedientes registrados. Los promedios se basan en los casos con fecha disponible.</p></div></section>
+    <section class="metric-grid" aria-label="Indicadores principales">
+      <article class="metric-card"><span>Expedientes pendientes de revisión</span><strong>{{ pending_review_count }}</strong></article>
+      <article class="metric-card"><span>Tiempo hasta primera revisión</span><strong>{{ first_review_display }}</strong><small>Promedio desde el envío hasta la primera asignación en revisión.</small></article>
+      <article class="metric-card"><span>Tiempo hasta aprobación documental</span><strong>{{ approval_display }}</strong><small>Promedio desde el envío hasta la primera aprobación documental.</small></article>
+      <article class="metric-card"><span>Expedientes que requirieron correcciones</span><strong>{% if correction_percent != None %}{{ correction_percent|floatformat:1 }}%{% else %}Sin datos{% endif %}</strong><small>{{ correction_count }} de {{ submitted_count }} expedientes enviados.</small></article>
+      <article class="metric-card"><span>Documentos no concluyentes o con error técnico</span><strong>{{ automatic_issue_count }}</strong><small>Solo versiones vigentes de requisitos obligatorios.</small></article>
+    </section>
+    <section class="detail-section"><h2>Expedientes por estado</h2><div class="table-frame"><table class="data-table state-count-table management-table"><thead><tr><th scope="col">Estado</th><th scope="col">Expedientes</th></tr></thead><tbody>{% for state, label, total in status_counts %}<tr><td><span class="status status-{{ state }}">{{ label }}</span></td><td>{{ total }}</td></tr>{% endfor %}</tbody></table></div></section>
+  </div>
+</div>
+{% endblock %}

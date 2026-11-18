@@ -1,0 +1,14 @@
+{% extends "admisiones/base.html" %}
+{% block title %}Notificaciones · Asistente de revisión documental{% endblock %}
+{% block content %}
+<section class="page-heading"><div><h1>Notificaciones</h1><p>Avisos relacionados con tus expedientes.</p></div></section>
+{% if notifications %}
+<ol class="notification-list">{% for notification in notifications %}
+  <li class="notification-item{% if not notification.read_at %} notification-unread{% endif %}">
+    <div><h2>{{ notification.title }}</h2><p>{{ notification.message|linebreaksbr }}</p><small>{{ notification.created_at|date:"j M Y, H:i" }}</small></div>
+    {% if notification.application and user.role == 'applicant' %}<a class="button button-secondary button-small" href="{% url 'applicant_application' public_id=notification.application.public_id %}">Ver expediente</a>{% endif %}
+    {% if not notification.read_at %}<form method="post" action="{% url 'notification_read' notification_id=notification.pk %}">{% csrf_token %}<button class="text-button" type="submit">Marcar como leída</button></form>{% endif %}
+  </li>
+{% endfor %}</ol>
+{% else %}<section class="empty-state"><h2>No tienes notificaciones</h2><p>Los avisos de tus expedientes aparecerán aquí.</p></section>{% endif %}
+{% endblock %}
