@@ -5,15 +5,65 @@
 <div class="reviewer-layout">
   {% include "admisiones/_reviewer_sidebar.html" with current="indicators" %}
   <div class="reviewer-content">
-    <section class="page-heading"><div><h1>Indicadores documentales</h1><p>Calculados con los expedientes registrados. Los promedios se basan en los casos con fecha disponible.</p></div></section>
-    <section class="metric-grid" aria-label="Indicadores principales">
-      <article class="metric-card"><span>Expedientes pendientes de revisión</span><strong>{{ pending_review_count }}</strong></article>
-      <article class="metric-card"><span>Tiempo hasta primera revisión</span><strong>{{ first_review_display }}</strong><small>Promedio desde el envío hasta la primera asignación en revisión.</small></article>
-      <article class="metric-card"><span>Tiempo hasta aprobación documental</span><strong>{{ approval_display }}</strong><small>Promedio desde el envío hasta la primera aprobación documental.</small></article>
-      <article class="metric-card"><span>Expedientes que requirieron correcciones</span><strong>{% if correction_percent != None %}{{ correction_percent|floatformat:1 }}%{% else %}Sin datos{% endif %}</strong><small>{{ correction_count }} de {{ submitted_count }} expedientes enviados.</small></article>
-      <article class="metric-card"><span>Documentos no concluyentes o con error técnico</span><strong>{{ automatic_issue_count }}</strong><small>Solo versiones vigentes de requisitos obligatorios.</small></article>
+    <section class="page-heading"><div><h1>Indicadores documentales</h1></div></section>
+
+    <section class="indicator-overview" aria-label="Indicadores principales">
+      <article class="indicator-card indicator-hero">
+        <h2 class="indicator-label">Pendientes de revisión</h2>
+        <p class="indicator-hero-value">{{ pending_review_count }}</p>
+        <p class="indicator-caption">de {{ total_count }} expediente{{ total_count|pluralize }} registrado{{ total_count|pluralize }}</p>
+        <dl class="indicator-breakdown">
+          <div><dt>Por asignar</dt><dd>{{ waiting_assignment_count }}</dd></div>
+          <div><dt>En revisión</dt><dd>{{ in_review_count }}</dd></div>
+        </dl>
+      </article>
+
+      <div class="indicator-kpis">
+        <article class="indicator-card">
+          <h2 class="indicator-label">Tiempo hasta primera revisión</h2>
+          <p class="indicator-value{% if first_review_average is None %} is-empty{% endif %}">{{ first_review_display }}</p>
+          <p class="indicator-caption">Promedio desde el envío</p>
+        </article>
+        <article class="indicator-card">
+          <h2 class="indicator-label">Tiempo hasta aprobación documental</h2>
+          <p class="indicator-value{% if approval_average is None %} is-empty{% endif %}">{{ approval_display }}</p>
+          <p class="indicator-caption">Promedio desde el envío</p>
+        </article>
+        <article class="indicator-card">
+          <h2 class="indicator-label">Requirieron correcciones</h2>
+          {% if correction_percent is not None %}
+            <p class="indicator-value">{{ correction_percent|floatformat:0 }} %</p>
+            <div class="indicator-meter" role="img" aria-label="{{ correction_count }} de {{ submitted_count }} expedientes enviados"><span style="width: {% widthratio correction_count submitted_count 100 %}%"></span></div>
+            <p class="indicator-caption">{{ correction_count }} de {{ submitted_count }} expedientes enviados</p>
+          {% else %}
+            <p class="indicator-value is-empty">Sin datos</p>
+            <p class="indicator-caption">Aún no hay expedientes enviados</p>
+          {% endif %}
+        </article>
+        <article class="indicator-card">
+          <h2 class="indicator-label">Prevalidación sin resultado</h2>
+          <p class="indicator-value">{{ automatic_issue_count }}</p>
+          <p class="indicator-caption">Documentos vigentes no concluyentes o con error técnico</p>
+        </article>
+      </div>
     </section>
-    <section class="detail-section"><h2>Expedientes por estado</h2><div class="table-frame"><table class="data-table state-count-table management-table"><thead><tr><th scope="col">Estado</th><th scope="col">Expedientes</th></tr></thead><tbody>{% for state, label, total in status_counts %}<tr><td><span class="status status-{{ state }}">{{ label }}</span></td><td>{{ total }}</td></tr>{% endfor %}</tbody></table></div></section>
+    <p class="indicator-footnote">Los promedios solo cuentan expedientes con fecha registrada.</p>
+
+    <section class="indicator-card indicator-states" aria-labelledby="states-title">
+      <header class="indicator-states-heading">
+        <h2 id="states-title">Expedientes por estado</h2>
+        <span>{{ total_count }} en total</span>
+      </header>
+      <ol class="state-meter-list">
+        {% for row in state_rows %}
+          <li class="state-meter{% if not row.total %} is-zero{% endif %}" data-tooltip="{{ row.label }}: {{ row.total }} expediente{{ row.total|pluralize }} ({{ row.share }} %)">
+            <span class="state-meter-name"><span class="status status-{{ row.state }}">{{ row.label }}</span></span>
+            <span class="state-meter-track" aria-hidden="true"><span style="width: {{ row.share }}%"></span></span>
+            <span class="state-meter-figure"><strong>{{ row.total }}</strong><small>{{ row.share }} %</small></span>
+          </li>
+        {% endfor %}
+      </ol>
+    </section>
   </div>
 </div>
 {% endblock %}

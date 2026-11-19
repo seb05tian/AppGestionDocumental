@@ -33,6 +33,7 @@ urlpatterns = [
     path("admisiones/indicadores/", views.reviewer_indicators, name="reviewer_indicators"),
     path("admisiones/expedientes/<uuid:public_id>/", views.reviewer_application, name="reviewer_application"),
     path("admisiones/expedientes/<uuid:public_id>/asignar/", views.reviewer_assign, name="reviewer_assign"),
+    path("admisiones/expedientes/<uuid:public_id>/carpeta.zip", views.application_zip, name="application_zip"),
     path("admisiones/expedientes/<uuid:public_id>/liberar/", views.reviewer_release, name="reviewer_release"),
     path("admisiones/expedientes/<uuid:public_id>/enviar/", views.reviewer_submit, name="reviewer_submit"),
     path("admisiones/expedientes/<uuid:public_id>/documentos/<int:slot_id>/cargar/", views.reviewer_upload, name="reviewer_upload"),

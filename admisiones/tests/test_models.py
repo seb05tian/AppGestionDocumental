@@ -15,7 +15,7 @@ class DomainModelContractTests(SimpleTestCase):
 
     def test_processing_is_unique_per_immutable_document_version(self):
         self.assertTrue(hasattr(models, "ProcessingJob"))
-        self.assertTrue(any(c.fields == ("version",) for c in models.ProcessingJob._meta.constraints))
+        self.assertTrue(any(c.fields == ("version", "kind") for c in models.ProcessingJob._meta.constraints))
 
     def test_reopened_review_round_keeps_prior_decisions_and_prevents_duplicates(self):
         self.assertIn("review_round", [field.name for field in models.Application._meta.fields])

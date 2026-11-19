@@ -102,11 +102,18 @@ class ApplicantAndReviewerPortalTests(TransactionTestCase):
         self.client.force_login(self.reviewer)
         self.assertEqual(self.client.get(reverse("reviewer_inbox")).status_code, 200)
         self.client.post(reverse("reviewer_assign", kwargs={"public_id": application.public_id}))
+        reviewer_page = self.client.get(reverse("reviewer_application", kwargs={"public_id": application.public_id}))
+        self.assertContains(reviewer_page, "Aprobar documento")
+        self.assertNotContains(reviewer_page, 'name="internal_note"')
+        Observation.objects.create(
+            application=application, author=self.reviewer,
+            audience=Observation.Audience.INTERNAL, text="Llamar al equipo de soporte.",
+        )
         slot = application.requirements.get(code="identity")
         version = slot.current_version
         response = self.client.post(
             reverse("review_document", kwargs={"public_id": application.public_id, "slot_id": slot.pk}),
-            {"version_id": version.pk, "decision": "correction", "reason": "La imagen no muestra el número completo.", "internal_note": "Llamar al equipo de soporte."},
+            {"version_id": version.pk, "decision": "correction", "reason": "La imagen no muestra el número completo."},
         )
         self.assertEqual(response.status_code, 302)
         application.refresh_from_db()

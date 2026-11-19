@@ -11,7 +11,7 @@ from django.views.decorators.http import require_GET, require_http_methods
 from .filter_forms import ApplicantFilters
 from .forms import ApplicantDeleteForm, ApplicantDetailsForm, ApplicantEditForm, ApplicationForm, StaffApplicationForm
 from .management_forms import build_management_form, complete_management_form, is_management_dialog, render_management_form
-from .models import Applicant, Application
+from .models import Applicant, Application, User
 from .services.workflow import ApplicantDataConflict, DuplicateApplication, create_staff_application
 from .views import admissions_required
 
@@ -45,7 +45,7 @@ def applicant_new(request):
 def applicant_detail(request, public_id):
     person = get_object_or_404(Applicant, public_id=public_id)
     if request.method == "GET" and is_management_dialog(request):
-        return render(request, "admisiones/_applicant_detail_dialog.html", {"person": person, "applications": _person_applications(person)})
+        return render(request, "admisiones/_applicant_detail_dialog.html", {"person": person, "applications": _person_applications(person, request.user)})
     form = build_management_form(request, ApplicationForm)
     return _handle_intake(request, form, person)
 
@@ -93,10 +93,11 @@ def applicant_delete(request, public_id):
     )
 
 
-def _person_applications(person):
-    return person.applications.exclude(
-        state=Application.State.DRAFT, origin=Application.Origin.PORTAL,
-    ).select_related("program", "call").order_by("-created_at", "-pk")
+def _person_applications(person, actor):
+    applications = person.applications.all()
+    if actor.role != User.Role.ADMINISTRATOR:
+        applications = applications.exclude(state=Application.State.DRAFT, origin=Application.Origin.PORTAL)
+    return applications.select_related("program", "call").order_by("-created_at", "-pk")
 
 
 def _render_person_form(request, form, person, *, title, fields_template, submit_label, submit_class="button-primary"):
@@ -119,7 +120,7 @@ def _handle_intake(request, form, person=None):
         "cancel_label": "Volver a aspirantes",
     }
     if person:
-        context["applications"] = _person_applications(person)
+        context["applications"] = _person_applications(person, request.user)
     if request.method == "POST" and form.is_valid():
         details = {name: form.cleaned_data[name] for name in ApplicantDetailsForm.base_fields} if person is None else {}
         try:
@@ -131,7 +132,7 @@ def _handle_intake(request, form, person=None):
             context["existing_person"] = error.applicant
         except DuplicateApplication as error:
             form.add_error(None, error)
-            context["existing_application"] = error.application if error.application.visible_to_reviewer() else None
+            context["existing_application"] = error.application if error.application.visible_to_reviewer(request.user) else None
             context["existing_person"] = error.application.applicant
         except ValidationError as error:
             form.add_error(None, error)

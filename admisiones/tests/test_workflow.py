@@ -87,6 +87,19 @@ class ApplicationWorkflowTests(TestCase):
         service.assign_to_self(application, other)
         self.assertEqual(Application.objects.get(pk=application.pk).assigned_reviewer, other)
 
+    def test_administrator_can_review_without_changing_the_assigned_reviewer(self):
+        service = import_module("admisiones.services.workflow")
+        application = self.submit_with_files(service.create_application(self.applicant, self.program, self.call))
+        application.assigned_reviewer = self.reviewer
+        application.save(update_fields=("assigned_reviewer",))
+        administrator = User.objects.create_superuser(email="admin", password="Fuerte-2026-Clave!")
+
+        application = service.assign_to_self(application, administrator)
+        slot = application.requirements.get(code="identity")
+        review = service.review_document(slot, slot.current_version_id, administrator, Review.Decision.APPROVE)
+        self.assertEqual(review.reviewer, administrator)
+        self.assertEqual(application.assigned_reviewer, self.reviewer)
+
     def test_only_administrators_can_use_the_release_endpoint(self):
         service = import_module("admisiones.services.workflow")
         application = service.create_application(self.applicant, self.program, self.call)

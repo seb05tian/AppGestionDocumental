@@ -12,7 +12,7 @@
 </section>
 {% if application.state == 'correction' %}<div class="notice notice-warning" role="status"><strong>Hay correcciones pendientes.</strong> Reemplaza los documentos observados y vuelve a enviar el expediente.</div>{% endif %}
 {% if application.state == 'approved' %}<div class="notice notice-success" role="status"><strong>Documentación aprobada.</strong> Esta confirmación indica que se revisó la carpeta documental; no es una decisión de admisión académica.</div>{% endif %}
-<section class="section-heading"><div><h2>Documentos requeridos</h2><p>Carga un archivo por requisito. Los formatos permitidos son PDF, JPG y PNG; máximo {{ max_upload_mb }} MB por archivo.</p></div></section>
+<section class="section-heading"><div><h2>Documentos requeridos</h2><p>PDF, JPG o PNG · hasta {{ max_upload_mb }} MB por archivo</p></div></section>
 <div class="document-list">
 {% for slot in requirements %}
   <article class="document-item">

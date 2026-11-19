@@ -115,6 +115,10 @@ class ReviewerQueueAndIndicatorTests(TestCase):
         self.assertEqual(data["approval_average"], timedelta(days=1))
         self.assertEqual(data["correction_percent"], 100)
         self.assertEqual(data["automatic_issue_count"], 1)
+        self.assertEqual(data["total_count"], sum(row["total"] for row in data["state_rows"]))
+        for row in data["state_rows"]:
+            self.assertEqual(row["share"], round(row["total"] * 100 / data["total_count"]))
+        self.assertEqual(data["waiting_assignment_count"] + data["in_review_count"], data["pending_review_count"])
         response = self.client.get(reverse("reviewer_indicators"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tiempo hasta primera revisión")
@@ -134,3 +138,11 @@ class ReviewerQueueAndIndicatorTests(TestCase):
         notice.refresh_from_db()
         self.assertIsNotNone(notice.read_at)
 
+
+
+class EmptyIndicatorsTests(TestCase):
+    def test_empty_database_has_zero_totals_and_no_division_by_zero(self):
+        data = compute_indicators()
+        self.assertEqual(data["total_count"], 0)
+        self.assertEqual({row["share"] for row in data["state_rows"]}, {0})
+        self.assertIsNone(data["correction_percent"])

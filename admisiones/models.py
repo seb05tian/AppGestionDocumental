@@ -245,8 +245,16 @@ class Application(models.Model):
     def __str__(self):
         return f"{self.applicant} · {self.program} · {self.call}"
 
-    def visible_to_reviewer(self):
-        return self.state != self.State.DRAFT or self.origin != self.Origin.PORTAL
+    def visible_to_reviewer(self, actor=None):
+        return (
+            (actor is not None and actor.role == User.Role.ADMINISTRATOR)
+            or self.state != self.State.DRAFT or self.origin != self.Origin.PORTAL
+        )
+
+    def can_review_as(self, actor):
+        return actor.can_manage_admissions and (
+            actor.role == User.Role.ADMINISTRATOR or self.assigned_reviewer_id == actor.pk
+        )
 
     @classmethod
     def for_applicant(cls, actor):
@@ -277,6 +285,14 @@ class ApplicationRequirement(models.Model):
         ordering = ("position", "id")
         constraints = [models.UniqueConstraint(fields=("application", "code"), name="unique_application_requirement_code")]
 
+    def can_upload_by(self, actor, *, document_state=None):
+        if actor.role == User.Role.ADMINISTRATOR and self.current_version_id:
+            return (
+                self.application.state not in {Application.State.APPROVED, Application.State.CLOSED}
+                and (document_state or self.document_state()) != "approved"
+            )
+        return self.application.can_edit_documents(actor)
+
     def document_state(self):
         if self.current_version_id is None:
             return "pending_upload"
@@ -286,6 +302,11 @@ class ApplicationRequirement(models.Model):
         if review is None:
             return "pending_review"
         return "approved" if review.decision == Review.Decision.APPROVE else "correction"
+
+
+def applicant_file_key(applicant):
+    """Identification without punctuation; falls back to a short public id when there is none."""
+    return re.sub(r"[^A-Za-z0-9]", "", applicant.identification_number) or str(applicant.public_id)[:8]
 
 
 class DocumentVersion(models.Model):
@@ -306,8 +327,18 @@ class DocumentVersion(models.Model):
     def __str__(self):
         return f"{self.requirement.name} · v{self.version_number}"
 
+    @property
+    def standard_name(self):
+        """Download name: identification, requirement code, version and the validated extension."""
+        extension = "." + self.storage_key.rsplit(".", 1)[-1]
+        return f"{applicant_file_key(self.requirement.application.applicant)}_{self.requirement.code}_v{self.version_number}{extension}"
+
 
 class ProcessingJob(models.Model):
+    class Kind(models.TextChoices):
+        OCR = "ocr", "OCR"
+        AI = "ai", "IA"
+
     class Status(models.TextChoices):
         QUEUED = "queued", "Pendiente"
         RUNNING = "running", "Procesando"
@@ -315,6 +346,7 @@ class ProcessingJob(models.Model):
         FAILED = "failed", "Error técnico"
 
     version = models.ForeignKey(DocumentVersion, on_delete=models.CASCADE, related_name="processing_jobs")
+    kind = models.CharField(max_length=3, choices=Kind.choices, default=Kind.OCR)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.QUEUED)
     attempts = models.PositiveSmallIntegerField(default=0)
     locked_at = models.DateTimeField(null=True, blank=True)
@@ -324,7 +356,7 @@ class ProcessingJob(models.Model):
 
     class Meta:
         ordering = ("created_at",)
-        constraints = [models.UniqueConstraint(fields=("version",), name="unique_processing_job_version")]
+        constraints = [models.UniqueConstraint(fields=("version", "kind"), name="unique_processing_job_version_kind")]
 
 
 class PrevalidationResult(models.Model):
@@ -336,6 +368,7 @@ class PrevalidationResult(models.Model):
         ERROR = "error", "Error técnico"
 
     version = models.OneToOneField(DocumentVersion, on_delete=models.CASCADE, related_name="prevalidation")
+    ai_result = models.JSONField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
     extracted_text = models.TextField(blank=True)
     detected_type = models.CharField(max_length=40, blank=True)

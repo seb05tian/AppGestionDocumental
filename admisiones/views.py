@@ -1,6 +1,8 @@
 from functools import wraps
 from pathlib import Path
 import csv
+import tempfile
+import zipfile
 
 from django.conf import settings
 from django.contrib import messages
@@ -9,6 +11,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from django.utils import timezone
 
@@ -17,6 +20,7 @@ from .models import (
     Application,
     ApplicationRequirement,
     DocumentVersion,
+    applicant_file_key,
     Notification,
     Observation,
     PrevalidationResult,
@@ -162,30 +166,35 @@ def applicant_submit(request, public_id):
     return redirect("applicant_application", public_id=application.public_id)
 
 
-@login_required
-@require_GET
-def document_file(request, version_id):
-    version = get_object_or_404(DocumentVersion.objects.select_related("requirement__application__applicant"), pk=version_id)
+def _can_see_version(user, version):
     application = version.requirement.application
-    if request.user.role == User.Role.APPLICANT:
-        if application.applicant.user_id != request.user.pk or (
-            application.origin != Application.Origin.PORTAL and application.applicant.portal_verified_at is None
-        ):
-            raise Http404
-    elif request.user.can_manage_admissions:
-        if not application.visible_to_reviewer():
-            raise Http404
-    else:
-        raise Http404
+    if user.role == User.Role.APPLICANT:
+        return application.applicant.user_id == user.pk and (
+            application.origin == Application.Origin.PORTAL or application.applicant.portal_verified_at is not None
+        )
+    return user.can_manage_admissions and application.visible_to_reviewer(user)
+
+
+def _private_path(version):
     root = Path(settings.PRIVATE_MEDIA_ROOT).resolve()
     path = (root / version.storage_key).resolve()
     if root not in path.parents or not path.is_file():
         raise Http404
+    return path
+
+
+@login_required
+@require_GET
+def document_file(request, version_id):
+    version = get_object_or_404(DocumentVersion.objects.select_related("requirement__application__applicant"), pk=version_id)
+    if not _can_see_version(request.user, version):
+        raise Http404
+    path = _private_path(version)
     try:
         response = FileResponse(
             path.open("rb"),
             as_attachment=request.GET.get("download") == "1",
-            filename=version.original_name,
+            filename=version.standard_name,
             content_type=version.content_type,
         )
     except (OSError, RuntimeError) as error:
@@ -197,9 +206,35 @@ def document_file(request, version_id):
     return response
 
 
-def _review_application(public_id):
+@admissions_required
+@require_GET
+def application_zip(request, public_id):
+    application = _review_application(request.user, public_id)
+    slots = application.requirements.filter(current_version__isnull=False).select_related("current_version__requirement__application__applicant")
+    versions = [slot.current_version for slot in slots]
+    if not versions:
+        messages.error(request, "Este expediente todavía no tiene documentos para descargar.")
+        return redirect("reviewer_application", public_id=public_id)
+    buffer = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024)
+    # PDF and images are already compressed, so storing them is faster and the same size.
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+        for version in versions:
+            archive.write(_private_path(version), arcname=version.standard_name)
+    buffer.seek(0)
+    response = FileResponse(
+        buffer,
+        as_attachment=True,
+        filename=f"expediente-{applicant_file_key(application.applicant)}.zip",
+        content_type="application/zip",
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+def _review_application(actor, public_id):
     application = get_object_or_404(Application.objects.select_related("applicant", "created_by", "assigned_reviewer", "program", "call"), public_id=public_id)
-    if not application.visible_to_reviewer():
+    if not application.visible_to_reviewer(actor):
         raise Http404
     return application
 
@@ -273,24 +308,47 @@ def notification_read(request, notification_id):
 
 @admissions_required
 @require_GET
+@never_cache
 def reviewer_application(request, public_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
+    if request.GET.get("analisis") == "1":
+        slots = list(application.requirements.filter(current_version__isnull=False).select_related("current_version__prevalidation"))
+        _attach_ai_summaries(slots, application.applicant)
+        return render(request, "admisiones/_reviewer_ai_results.html", {"requirements": slots})
     return _render_reviewer_application(request, application)
+
+
+def _attach_ai_summaries(slots, applicant):
+    from admisiones.models import ProcessingJob
+    from admisiones.services.ai_verifier import reviewer_summary
+
+    version_ids = [slot.current_version_id for slot in slots if slot.current_version_id]
+    jobs = {job.version_id: job for job in ProcessingJob.objects.filter(
+        version_id__in=version_ids, kind=ProcessingJob.Kind.AI,
+    )}
+    for slot in slots:
+        if slot.current_version_id:
+            result = getattr(slot.current_version, "prevalidation", None)
+            slot.ai_summary = reviewer_summary(
+                jobs.get(slot.current_version_id), result.ai_result if result else None, applicant,
+            )
 
 
 def _render_reviewer_application(request, application, *, review_form=None, upload_form=None, slot_id=None, status=200):
     context = _application_context(application, Observation.Audience.INTERNAL)
     context["applicant_observations"] = application.observations.filter(audience=Observation.Audience.APPLICANT)
     context["can_manage_documents"] = application.can_edit_documents(request.user)
-    context["can_review"] = application.state == Application.State.IN_REVIEW and application.assigned_reviewer_id == request.user.id
+    context["can_review"] = application.state == Application.State.IN_REVIEW and application.can_review_as(request.user)
     unassigned = application.assigned_reviewer_id is None
     context["can_claim"] = (application.state == Application.State.IN_REVIEW and unassigned) or (
-        application.state == Application.State.SUBMITTED and (unassigned or application.assigned_reviewer_id == request.user.id)
+        application.state == Application.State.SUBMITTED and (unassigned or application.can_review_as(request.user))
     )
     context["can_release"] = request.user.role == User.Role.ADMINISTRATOR and not unassigned and application.state in {
         Application.State.SUBMITTED, Application.State.IN_REVIEW, Application.State.CORRECTION,
     }
+    _attach_ai_summaries(context["requirements"], application.applicant)
     for slot in context["requirements"]:
+        slot.can_upload = slot.can_upload_by(request.user, document_state=slot.document_status)
         if slot.pk == slot_id:
             slot.bound_review = review_form
             slot.bound_upload = upload_form
@@ -300,10 +358,12 @@ def _render_reviewer_application(request, application, *, review_form=None, uplo
 @admissions_required
 @require_POST
 def reviewer_upload(request, public_id, slot_id):
-    application = _review_application(public_id)
-    if not application.can_edit_documents(request.user):
-        raise PermissionDenied
+    application = _review_application(request.user, public_id)
     slot = get_object_or_404(ApplicationRequirement, pk=slot_id, application=application)
+    if not application.can_edit_documents(request.user) and not (
+        request.user.role == User.Role.ADMINISTRATOR and slot.current_version_id
+    ):
+        raise PermissionDenied
     form = UploadForm(request.POST, request.FILES)
     if form.is_valid():
         try:
@@ -320,7 +380,7 @@ def reviewer_upload(request, public_id, slot_id):
 @admissions_required
 @require_POST
 def reviewer_submit(request, public_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
     try:
         transition_application(application, Application.State.SUBMITTED, request.user)
     except (ValidationError, ReviewConflict) as error:
@@ -346,21 +406,22 @@ def _run_action(request, public_id, action, success):
 @admissions_required
 @require_POST
 def reviewer_assign(request, public_id):
-    application = _review_application(public_id)
-    return _run_action(request, public_id, lambda: assign_to_self(application, request.user), "El expediente quedó asignado a ti.")
+    application = _review_application(request.user, public_id)
+    message = "La revisión del expediente está abierta." if request.user.role == User.Role.ADMINISTRATOR else "El expediente quedó asignado a ti."
+    return _run_action(request, public_id, lambda: assign_to_self(application, request.user), message)
 
 
 @role_required(User.Role.ADMINISTRATOR)
 @require_POST
 def reviewer_release(request, public_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
     return _run_action(request, public_id, lambda: release_application(application, request.user), "El expediente quedó sin revisor asignado.")
 
 
 @admissions_required
 @require_POST
 def reviewer_submit(request, public_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
     return _run_action(
         request, public_id, lambda: transition_application(application, Application.State.SUBMITTED, request.user),
         "El expediente se envió a revisión.",
@@ -370,7 +431,7 @@ def reviewer_submit(request, public_id):
 @admissions_required
 @require_POST
 def review_document_view(request, public_id, slot_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
     slot = get_object_or_404(ApplicationRequirement, pk=slot_id, application=application)
     form = ReviewDecisionForm(request.POST)
     if not form.is_valid():
@@ -379,7 +440,7 @@ def review_document_view(request, public_id, slot_id):
         request, public_id,
         lambda: review_document(
             slot, form.cleaned_data["version_id"], request.user, form.cleaned_data["decision"],
-            reason=form.cleaned_data["reason"], internal_note=form.cleaned_data["internal_note"],
+            reason=form.cleaned_data["reason"],
         ),
         "La revisión del documento quedó guardada.",
     )
@@ -388,7 +449,7 @@ def review_document_view(request, public_id, slot_id):
 @admissions_required
 @require_POST
 def reviewer_send_corrections(request, public_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
     return _run_action(
         request, public_id, lambda: send_corrections(application, request.user),
         "Se envió una solicitud con todas las correcciones.",
@@ -398,7 +459,7 @@ def reviewer_send_corrections(request, public_id):
 @admissions_required
 @require_POST
 def reviewer_approve(request, public_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
     return _run_action(
         request, public_id, lambda: transition_application(application, Application.State.APPROVED, request.user),
         "La documentación obligatoria quedó aprobada.",
@@ -408,7 +469,7 @@ def reviewer_approve(request, public_id):
 @admissions_required
 @require_POST
 def reviewer_close(request, public_id):
-    application = _review_application(public_id)
+    application = _review_application(request.user, public_id)
     return _run_action(
         request, public_id, lambda: transition_application(application, Application.State.CLOSED, request.user),
         "El expediente quedó cerrado.",

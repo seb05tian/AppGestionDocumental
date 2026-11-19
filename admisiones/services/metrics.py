@@ -53,8 +53,19 @@ def compute_indicators():
     ).count()
     first_review_average = _average(first_review_times)
     approval_average = _average(approval_times)
+    total_count = sum(status_counts.values())
     return {
         "status_counts": [(state, label, status_counts.get(state, 0)) for state, label in Application.State.choices],
+        "state_rows": [
+            {
+                "state": state, "label": label, "total": status_counts.get(state, 0),
+                "share": round(status_counts.get(state, 0) * 100 / total_count) if total_count else 0,
+            }
+            for state, label in Application.State.choices
+        ],
+        "total_count": total_count,
+        "waiting_assignment_count": status_counts.get(Application.State.SUBMITTED, 0),
+        "in_review_count": status_counts.get(Application.State.IN_REVIEW, 0),
         "pending_review_count": Application.objects.filter(
             state__in=(Application.State.SUBMITTED, Application.State.IN_REVIEW)
         ).count(),

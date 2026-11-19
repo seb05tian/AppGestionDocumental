@@ -2,18 +2,26 @@ from django.core.paginator import Paginator
 from django.db.models import Count, F, Q
 
 from admisiones.filter_forms import QueueFilters
-from admisiones.models import Applicant, Application, Review
+from admisiones.models import Applicant, Application, Review, User
 
 
 def reviewer_queue(request, paginate=True):
     filters = QueueFilters(request.GET, search_placeholder="Nombre o documento")
+    is_admin = request.user.role == User.Role.ADMINISTRATOR
+    if is_admin:
+        filters.fields["state"].choices = [
+            ("", "Todos los estados"), ("active", "En gestión"), *Application.State.choices,
+        ]
     filters.is_valid()
     selected = filters.cleaned_data
-    applications = Application.objects.exclude(state=Application.State.DRAFT, origin=Application.Origin.PORTAL)
-    if state := selected.get("state"):
-        applications = applications.filter(state=state)
-    else:
+    applications = Application.objects.all()
+    if not is_admin:
+        applications = applications.exclude(state=Application.State.DRAFT, origin=Application.Origin.PORTAL)
+    state = selected.get("state")
+    if state == "active" or (not is_admin and not state):
         applications = applications.exclude(state__in=(Application.State.APPROVED, Application.State.CLOSED))
+    elif state:
+        applications = applications.filter(state=state)
     if query := selected.get("q"):
         applications = applications.filter(applicant__in=Applicant.matching_text(query))
     if program := selected.get("program"):

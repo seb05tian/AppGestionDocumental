@@ -12,6 +12,8 @@ Use the institutional direction in the brief: restrained deep blue for the admis
 
 The implementation in `static/admisiones/css/app.css` is the source of truth for CSS custom properties. Keep color, type, spacing, radii, shadow, widths, and motion durations centralized there. Keep state meaning visible in text as well as color.
 
+Typography uses Atkinson Hyperlegible Next, self-hosted from `static/admisiones/fonts/` (OFL). It was chosen because staff read identification numbers and codes all day and the face separates look-alike characters (I, l, 1; 0, O). Controls share `--radius-control`; button size modifiers (`.button-small`) only change size, and color always comes from a variant (`.button-primary`, `.button-secondary`, `.button-accent`, `.button-danger`).
+
 ## Interaction
 
 - Desktop admissions and administration share a left navigation rail with grouped options, menu search, and a compact mode. The current section is highlighted and labeled for assistive technology.

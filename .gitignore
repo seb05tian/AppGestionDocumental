@@ -9,7 +9,3 @@ __pycache__/
 /test-results/
 /.superpowers/sdd/*
 !/.superpowers/sdd/.gitignore
-
-# Migraciones: no se suben al repositorio
-admisiones/migrations/*.py
-!admisiones/migrations/__init__.py

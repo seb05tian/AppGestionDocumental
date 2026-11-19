@@ -28,6 +28,7 @@ Al actualizar una instalación anterior, la migración indica los IDs de los per
 - En `/admisiones/aspirantes/importar/` puedes descargar la plantilla de Excel, completarla y subirla (también se acepta un CSV UTF-8) para revisar la vista previa y confirmar las filas válidas. Cada lote admite 500 filas y 256 KB. Conserva la identificación y el teléfono como texto al preparar el archivo.
 - Desde `/admisiones/expedientes/<uuid>/` se cargan, consultan y reemplazan documentos de expedientes creados por admisiones. Los cambios conservan el historial y encolan la misma prevalidación que el portal.
 - En la bandeja `/admisiones/` se asignan expedientes enviados. Si un revisor no puede continuar, un administrador usa **Liberar expediente** para dejarlo sin asignar; otro revisor puede tomarlo después. Revisa cada documento y usa **Enviar solicitud de correcciones** para reunir los motivos en una sola notificación. Al reenviar, las nuevas versiones quedan pendientes y las aprobaciones de las versiones que siguen vigentes se conservan.
+- El botón **Descargar carpeta (ZIP)** del expediente entrega sus documentos vigentes con nombres estándar (`identificación_requisito_vN`). Cada documento individual se descarga con el mismo nombre.
 - Los aspirantes consultan su estado e historial en `/aspirante/`. Para abrir un expediente creado por admisiones, verifica el correo de contacto desde `/vincular/`. Si ya tienes cuenta, inicia sesión antes de solicitar y abrir el enlace en el mismo navegador.
 - Desde el menú lateral de `/administracion/`, el personal administrador opera la misma bandeja de admisiones y puede crear, editar o desactivar **Programas**, **Convocatorias** y **Requisitos documentales**. Una convocatoria solo acepta solicitudes entre su fecha de apertura y su fecha de cierre; una fecha vacía no limita ese lado. Los cambios de requisitos se aplican a nuevos expedientes. Cada expediente conserva la configuración con la que se creó.
 - El panel /admisiones/indicadores/ calcula sus cifras a partir de expedientes e historial guardados; si no hay muestras, muestra “Sin datos”.
@@ -102,3 +103,15 @@ La política de conservación, plazos, eliminación, base institucional del avis
 - Diseño y decisiones del MVP: docs/superpowers/specs/2026-11-17-asistente-documental-design.md
 - Plan de implementación: docs/superpowers/plans/2026-11-17-asistente-documental.md
 - Guía operativa y fórmulas de indicadores: docs/OPERACION.md
+### Piloto de pre-revisión con IA local
+
+La pre-revisión es orientativa y se procesa en una cola independiente del OCR y el correo. Analiza cargas nuevas cuando `AI_PREVALIDATION_ENABLED=1` en `.env`. El valor por defecto es `0`. Las versiones anteriores conservan sus resultados y los dictámenes solo aparecen en el expediente interno. El diagnóstico se limita a frases predefinidas para evitar que incluya datos personales.
+
+Antes de habilitar el piloto, verifica el acceso a la GPU de Docker Desktop con WSL 2. Descarga Qwen3‑VL en el volumen del modelo con un contenedor temporal que tiene acceso a internet y que solo monta los pesos.
+
+```powershell
+docker run --rm -v appgestiondocumental-ollama-models:/root/.ollama --entrypoint /bin/sh ollama/ollama:0.40.16 -c 'ollama serve >/tmp/ollama.log 2>&1 & for i in 1 2 3 4 5 6 7 8 9 10; do ollama list >/dev/null 2>&1 && break; sleep 1; done; ollama pull qwen3-vl:4b-instruct'
+docker compose --profile ai up -d --build
+```
+
+Mantén la IA desactivada en el entorno real durante las primeras pruebas. Usa una instancia con base de datos y archivos de prueba para medir legibilidad, clasificación y coincidencia de identidad frente a revisión humana. Registra la versión del modelo, latencia y uso de memoria antes de habilitar cargas reales. En operación Ollama queda en una red interna sin publicar su puerto. Para pausar análisis nuevos, desactiva la variable, recrea la app y detén `worker-ai`. Los trabajos pendientes se conservan para una reactivación.

@@ -57,16 +57,17 @@ def transition_application(application, target, actor, reason=""):
         if previous in {Application.State.APPROVED, Application.State.CLOSED}:
             if not reason:
                 raise ValidationError("Indica el motivo para reabrir el expediente.")
-            if locked.assigned_reviewer_id not in (None, actor.pk):
+            if locked.assigned_reviewer_id is not None and not locked.can_review_as(actor):
                 raise ReviewConflict("Este expediente está asignado a otro revisor.")
-            locked.assigned_reviewer = actor
+            if locked.assigned_reviewer_id is None:
+                locked.assigned_reviewer = actor
             locked.review_round += 1
-        elif locked.assigned_reviewer_id != actor.pk:
+        elif not locked.can_review_as(actor):
             raise ReviewConflict("Asígnate el expediente antes de iniciar la revisión.")
     elif target in {Application.State.CORRECTION, Application.State.APPROVED, Application.State.CLOSED}:
         if not can_review:
             raise PermissionDenied("Solo un revisor de admisiones puede guardar esta decisión.")
-        if locked.assigned_reviewer_id != actor.pk:
+        if not locked.can_review_as(actor):
             raise ReviewConflict("El expediente ya no está asignado a este revisor.")
         if target == Application.State.CORRECTION and not reason:
             raise ValidationError("Indica qué debe corregir el aspirante.")

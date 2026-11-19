@@ -126,7 +126,7 @@ def assign_to_self(application, reviewer):
     if not reviewer.can_manage_admissions:
         raise PermissionDenied("Solo un revisor de admisiones puede asignarse expedientes.")
     locked = Application.objects.select_for_update().get(pk=application.pk)
-    if locked.assigned_reviewer_id and locked.assigned_reviewer_id != reviewer.pk:
+    if locked.assigned_reviewer_id and not locked.can_review_as(reviewer):
         raise ReviewConflict("Este expediente ya está asignado a otro revisor.")
     if locked.state not in {Application.State.SUBMITTED, Application.State.IN_REVIEW}:
         raise ValidationError("Este expediente no está disponible para revisión.")
@@ -159,12 +159,12 @@ def release_application(application, administrator):
 
 
 @transaction.atomic
-def review_document(slot, version_id, reviewer, decision, reason="", internal_note=""):
+def review_document(slot, version_id, reviewer, decision, reason=""):
     if not reviewer.can_manage_admissions:
         raise PermissionDenied("Solo un revisor de admisiones puede revisar documentos.")
     application = Application.objects.select_for_update().get(pk=slot.application_id)
     locked_slot = ApplicationRequirement.objects.select_for_update().get(pk=slot.pk, application=application)
-    if application.assigned_reviewer_id != reviewer.pk:
+    if not application.can_review_as(reviewer):
         raise ReviewConflict("El expediente ya no está asignado a este revisor.")
     if application.state != Application.State.IN_REVIEW:
         raise ReviewConflict("El expediente cambió de estado y debe actualizarse antes de revisar.")
@@ -185,13 +185,6 @@ def review_document(slot, version_id, reviewer, decision, reason="", internal_no
         reason=reason,
         review_round=application.review_round,
     )
-    if internal_note.strip():
-        Observation.objects.create(
-            application=application,
-            author=reviewer,
-            audience=Observation.Audience.INTERNAL,
-            text=internal_note.strip(),
-        )
     return review
 
 
@@ -200,7 +193,7 @@ def send_corrections(application, reviewer):
     locked = Application.objects.select_for_update().get(pk=application.pk)
     if not reviewer.can_manage_admissions:
         raise PermissionDenied
-    if locked.state != Application.State.IN_REVIEW or locked.assigned_reviewer_id != reviewer.pk:
+    if locked.state != Application.State.IN_REVIEW or not locked.can_review_as(reviewer):
         raise ReviewConflict("El expediente ya no está disponible para enviar correcciones.")
     slots = list(locked.requirements.filter(current_version__isnull=False).select_related("current_version"))
     reviews = {

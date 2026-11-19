@@ -47,11 +47,8 @@ SESSION_KEY = "applicant_import"
 
 class ApplicantImportForm(ApplicationForm):
     file = forms.FileField(
-        label="Archivo CSV",
-        help_text=(
-            "Excel (.xlsx) o CSV UTF-8, de hasta 500 filas y 256 KB. Identificación y teléfono se guardan como texto. "
-            f"Tipos de identificación: {', '.join(Applicant.IdentificationType.values)}."
-        ),
+        label="Archivo",
+        help_text="Excel o CSV · hasta 500 filas y 256 KB",
         widget=forms.FileInput(attrs={"accept": ".xlsx,.csv,text/csv"}),
     )
 

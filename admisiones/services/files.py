@@ -80,12 +80,16 @@ def store_version(slot, upload, actor):
     actor = User.objects.select_for_update().get(pk=actor.pk)
     if not actor.can_manage_admissions and application.applicant.user_id != actor.pk:
         raise PermissionDenied("No puedes modificar este expediente.")
-    if actor.can_manage_admissions and application.origin == Application.Origin.PORTAL:
-        raise PermissionDenied("Solo el aspirante puede cargar documentos de una solicitud del portal.")
-    if application.state not in {Application.State.DRAFT, Application.State.CORRECTION}:
-        raise ValidationError("Los documentos solo se pueden cargar en un borrador o cuando hay correcciones pendientes.")
-    if not application.can_edit_documents(actor):
-        raise PermissionDenied("No puedes modificar este expediente.")
+    if actor.role == User.Role.ADMINISTRATOR and slot.current_version_id:
+        if not slot.can_upload_by(actor):
+            raise ValidationError("El documento o el expediente ya fue aprobado o cerrado.")
+    else:
+        if actor.can_manage_admissions and application.origin == Application.Origin.PORTAL:
+            raise PermissionDenied("Solo el aspirante puede cargar documentos de una solicitud del portal.")
+        if application.state not in {Application.State.DRAFT, Application.State.CORRECTION}:
+            raise ValidationError("Los documentos solo se pueden cargar en un borrador o cuando hay correcciones pendientes.")
+        if not slot.can_upload_by(actor):
+            raise PermissionDenied("No puedes modificar este expediente.")
     uploaded_recently = DocumentVersion.objects.filter(
         uploaded_by=actor, created_at__gte=timezone.now() - timedelta(hours=1)
     ).count()
@@ -111,6 +115,8 @@ def store_version(slot, upload, actor):
             uploaded_by=actor,
         )
         ProcessingJob.objects.create(version=version)
+        if settings.AI_PREVALIDATION_ENABLED:
+            ProcessingJob.objects.create(version=version, kind=ProcessingJob.Kind.AI)
         PrevalidationResult.objects.create(version=version)
         slot.current_version = version
         slot.save(update_fields=("current_version",))

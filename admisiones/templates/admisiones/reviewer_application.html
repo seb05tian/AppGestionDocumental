@@ -1,4 +1,5 @@
 {% extends "admisiones/base.html" %}
+{% load asset_urls %}
 {% block title %}Revisión de expediente · Asistente de revisión documental{% endblock %}
 {% block page_class %} reviewer-page{% endblock %}
 {% block content %}
@@ -6,47 +7,61 @@
   {% include "admisiones/_reviewer_sidebar.html" with current="inbox" %}
   <div class="reviewer-content">
     <nav class="breadcrumbs" aria-label="Ruta"><a href="{% url 'reviewer_inbox' %}">Expedientes</a><span aria-hidden="true">/</span><span>Expediente</span></nav>
-    <section class="review-heading">
-      <div><h1>{{ application.applicant.get_full_name }}</h1><p class="detail-context">{{ application.program.name }} · {{ application.call.name }}</p>
-        <p>{{ application.applicant.get_identification_type_display }} {{ application.applicant.identification_number }} · {{ application.applicant.email }} · {{ application.applicant.phone }}</p>
-        <p>Creado {{ application.created_at|date:"j M Y" }} por {{ application.created_by }}{% if application.submitted_at %} · Enviado {{ application.submitted_at|date:"j M Y, H:i" }}{% endif %}</p>
+    <section class="applicant-panel" aria-labelledby="applicant-name">
+      <header class="applicant-panel-heading">
+        <div>
+          <h1 id="applicant-name">{{ application.applicant.get_full_name }}</h1>
+          <p class="detail-context">{{ application.program.name }} · {{ application.call.name }}</p>
+        </div>
+        <div class="review-heading-actions">
+          <span class="status status-{{ application.state }}">{{ application.get_state_display }}</span>
+          {% if uploaded_count %}<a class="button button-secondary button-small" href="{% url 'application_zip' public_id=application.public_id %}">Descargar carpeta (ZIP)</a>{% endif %}
+        </div>
+      </header>
+      <dl class="applicant-facts">
+        <div><dt>Identificación</dt><dd>{{ application.applicant.identification_number }}<span>{{ application.applicant.get_identification_type_display }}</span></dd></div>
+        <div><dt>Correo</dt><dd>{{ application.applicant.email }}</dd></div>
+        <div><dt>Teléfono</dt><dd>{{ application.applicant.phone|default:"—" }}</dd></div>
+        <div><dt>Creado</dt><dd>{{ application.created_at|date:"j M Y" }}<span>por {{ application.created_by }}</span></dd></div>
+        <div><dt>Enviado</dt><dd>{% if application.submitted_at %}{{ application.submitted_at|date:"j M Y, H:i" }}{% else %}Sin enviar{% endif %}</dd></div>
+        {% if application.state != 'draft' %}<div><dt>Revisor asignado</dt><dd>{{ application.assigned_reviewer|default:"Sin asignar" }}</dd></div>{% endif %}
+      </dl>
+      <footer class="applicant-panel-footer">
         <a href="{% url 'applicant_detail' public_id=application.applicant.public_id %}">Ver ficha del aspirante</a>
-      </div>
-      <span class="status status-{{ application.state }}">{{ application.get_state_display }}</span>
+        {% if can_claim or can_release %}
+          <div class="applicant-panel-actions">
+            {% if can_release %}
+              <form method="post" action="{% url 'reviewer_release' public_id=application.public_id %}">{% csrf_token %}
+                <button class="button button-secondary button-small" type="submit">Liberar expediente</button>
+              </form>
+            {% endif %}
+            {% if can_claim %}
+              <form method="post" action="{% url 'reviewer_assign' public_id=application.public_id %}">{% csrf_token %}
+                <button class="button button-primary button-small" type="submit">{% if user.role == 'administrator' and application.state == 'submitted' %}Iniciar revisión{% elif application.assigned_reviewer %}Continuar revisión{% else %}Asignarme expediente{% endif %}</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endif %}
+      </footer>
     </section>
-    {% if application.state != 'draft' %}
-      <div class="assignment-strip">
-        <span>Revisor asignado: <strong>{{ application.assigned_reviewer|default:"Sin asignar" }}</strong></span>
-        {% if can_claim %}
-          <form method="post" action="{% url 'reviewer_assign' public_id=application.public_id %}">{% csrf_token %}
-            <button class="button button-secondary button-small" type="submit">{% if application.assigned_reviewer %}Continuar revisión{% else %}Asignarme expediente{% endif %}</button>
-          </form>
-        {% endif %}
-        {% if can_release %}
-          <form method="post" action="{% url 'reviewer_release' public_id=application.public_id %}">{% csrf_token %}
-            <button class="button button-secondary button-small" type="submit">Liberar expediente</button>
-          </form>
-        {% endif %}
-      </div>
-    {% endif %}
     {% if application.state == 'correction' %}<div class="notice notice-warning" role="status">Hay documentos por corregir. {% if can_manage_documents %}Reemplázalos y envía el expediente de nuevo a revisión.{% else %}Espera que el aspirante los reemplace y reenvíe el expediente.{% endif %}</div>{% endif %}
     <section class="section-heading"><div><h2>{% if can_manage_documents %}Documentos del expediente{% else %}Revisión de documentos{% endif %}</h2>
-      <p>{{ uploaded_count }} de {{ required_count }} archivos obligatorios cargados · {{ approved_count }} aprobados{% if can_manage_documents %} · PDF, JPG o PNG, hasta {{ max_upload_mb }} MB por archivo{% endif %}</p>
+      <p>{{ uploaded_count }}/{{ required_count }} obligatorios cargados · {{ approved_count }} aprobados{% if can_manage_documents %} · PDF, JPG o PNG hasta {{ max_upload_mb }} MB{% endif %}</p>
     </div></section>
     <div class="review-document-list">
     {% for slot in requirements %}
       <article class="review-document" aria-labelledby="requirement-{{ slot.pk }}">
-        <header class="review-document-heading"><div><h3 id="requirement-{{ slot.pk }}">{{ slot.name }}</h3><p>{% if slot.required %}Obligatorio{% else %}Opcional{% endif %}</p></div><span class="status status-{{ slot.document_status }}">{{ slot.document_status_label }}</span></header>
+        <header class="review-document-heading"><div><h3 id="requirement-{{ slot.pk }}">{{ slot.name }}</h3>{% if not slot.required %}<p>Opcional</p>{% endif %}</div><span class="status status-{{ slot.document_status }}">{{ slot.document_status_label }}</span></header>
         <div class="document-review-grid">
           <section class="preview-panel" aria-label="Vista del documento">
             {% if slot.current_version %}
               <div class="preview-toolbar"><div><strong>Versión vigente · v{{ slot.current_version.version_number }}</strong><br>{{ slot.current_version.original_name }} · Cargado por {{ slot.current_version.uploaded_by }}</div><a class="button button-secondary button-small" href="{% url 'document_file' version_id=slot.current_version.pk %}?download=1">Descargar</a></div>
               {% if slot.current_version.content_type == 'application/pdf' %}<iframe class="pdf-preview" src="{% url 'document_file' version_id=slot.current_version.pk %}" title="Vista previa de {{ slot.current_version.original_name }}"><p>El navegador no pudo mostrar el PDF. <a href="{% url 'document_file' version_id=slot.current_version.pk %}?download=1">Descargar documento</a>.</p></iframe>{% else %}<img class="image-preview" src="{% url 'document_file' version_id=slot.current_version.pk %}" alt="Vista previa de {{ slot.current_version.original_name }}">{% endif %}
-              <div class="version-list"><strong>Versiones y decisiones anteriores</strong><ul>{% for old in slot.versions.all %}{% if old.pk != slot.current_version.pk %}<li><a href="{% url 'document_file' version_id=old.pk %}" target="_blank" rel="noopener">v{{ old.version_number }} · {{ old.original_name }}</a> · {{ old.created_at|date:"j M Y, H:i" }}{% for old_review in old.reviews.all %}<span class="review-history-label">{{ old_review.get_decision_display }}{% if old_review.reason %}: {{ old_review.reason }}{% endif %}</span>{% endfor %}</li>{% endif %}{% endfor %}{% if not slot.previous_versions %}<li>Esta es la primera versión.</li>{% endif %}</ul></div>
-            {% else %}<div class="empty-preview"><h4>Documento pendiente de carga</h4><p>Este requisito todavía no tiene un archivo vigente.</p></div>{% endif %}
+              {% if slot.previous_versions %}<div class="version-list"><strong>Versiones anteriores</strong><ul>{% for old in slot.previous_versions %}<li><a href="{% url 'document_file' version_id=old.pk %}" target="_blank" rel="noopener">v{{ old.version_number }} · {{ old.original_name }}</a> · {{ old.created_at|date:"j M Y, H:i" }}{% for old_review in old.reviews.all %}<span class="review-history-label">{{ old_review.get_decision_display }}{% if old_review.reason %}: {{ old_review.reason }}{% endif %}</span>{% endfor %}</li>{% endfor %}</ul></div>{% endif %}
+            {% else %}<div class="empty-preview"><h4>Documento pendiente de carga</h4></div>{% endif %}
           </section>
           <section class="review-panel" aria-label="Acciones y datos del documento">
-            {% if can_manage_documents %}
+            {% if slot.can_upload %}
               <form class="decision-block" method="post" enctype="multipart/form-data" action="{% url 'reviewer_upload' public_id=application.public_id slot_id=slot.pk %}#requirement-{{ slot.pk }}">
                 {% csrf_token %}
                 <div class="field{% if slot.bound_upload.file.errors %} field-invalid{% endif %}">
@@ -56,6 +71,8 @@
                 </div>
                 <button class="button button-secondary" type="submit">{% if slot.current_version %}Reemplazar documento{% else %}Cargar documento{% endif %}</button>
               </form>
+            {% elif slot.bound_upload.file.errors %}
+              <div class="notice notice-error" role="alert">{{ slot.bound_upload.file.errors }}</div>
             {% endif %}
             {% if slot.current_version %}<div class="automatic-review"><div class="section-label">Prevalidación automática</div>
               {% if slot.automatic_result %}
@@ -63,10 +80,11 @@
                 {% if slot.automatic_result.detected_type %}<p><strong>Tipo posible:</strong> {{ slot.automatic_result.detected_type }}</p>{% endif %}
                 {% if slot.automatic_result.extracted_identification %}<p><strong>Identificación encontrada:</strong> {{ slot.automatic_result.extracted_identification }}{% if slot.automatic_result.identification_matches == True %} · coincide con el registro{% elif slot.automatic_result.identification_matches == False %} · no coincide con el registro{% endif %}</p>{% endif %}
                 {% if slot.automatic_result.alerts %}<ul class="alert-list">{% for alert in slot.automatic_result.alerts %}<li>{{ alert.message|default:alert }}</li>{% endfor %}</ul>{% endif %}
-                {% if slot.automatic_result.status == 'clear' %}<p class="subtle-text">No se detectaron alertas. Este resultado no confirma autenticidad.</p>{% elif slot.automatic_result.status == 'inconclusive' %}<p class="subtle-text">El resultado no concluyente no significa que el documento sea inválido.</p>{% elif slot.automatic_result.status == 'error' %}{% endif %}
+                {% if slot.automatic_result.status == 'clear' %}<p class="subtle-text">No se detectaron alertas. Este resultado no confirma autenticidad.</p>{% elif slot.automatic_result.status == 'inconclusive' %}<p class="subtle-text">El resultado no concluyente no significa que el documento sea inválido.</p>{% endif %}
                 {% if slot.automatic_result.extracted_text %}<details class="extracted-text"><summary>Ver texto encontrado</summary><pre>{{ slot.automatic_result.extracted_text }}</pre></details>{% endif %}
-              {% else %}{% endif %}
+              {% endif %}
             </div>{% endif %}
+            {% include "admisiones/_document_ai_result.html" %}
             {% if slot.current_review %}
               <div class="notice {% if slot.current_review.decision == 'correction' %}notice-warning{% else %}notice-success{% endif %}">
                 {% if slot.current_review.decision == 'correction' %}<strong>{% if application.state == 'in_review' %}Marcado para corrección{% else %}Corrección solicitada{% endif %}</strong><br>{{ slot.current_review.reason }}
@@ -77,9 +95,6 @@
                 {% if slot.bound_review %}{{ slot.bound_review.version_id.errors }}{{ slot.bound_review.decision.errors }}{% endif %}
                 <form method="post" action="{% url 'review_document' public_id=application.public_id slot_id=slot.pk %}#requirement-{{ slot.pk }}" class="decision-form">
                   {% csrf_token %}<input type="hidden" name="version_id" value="{{ slot.current_version.pk }}">
-                  <label for="note-a-{{ slot.pk }}">Observación interna (opcional)</label>
-                  <textarea id="note-a-{{ slot.pk }}" name="internal_note" rows="2" maxlength="2000">{% if slot.bound_review.decision.value == 'approve' %}{{ slot.bound_review.internal_note.value|default_if_none:"" }}{% endif %}</textarea>
-                  {% if slot.bound_review.decision.value == 'approve' %}{{ slot.bound_review.internal_note.errors }}{% endif %}
                   <button class="button button-primary" name="decision" value="approve" type="submit">Aprobar documento</button>
                 </form>
                 <form method="post" action="{% url 'review_document' public_id=application.public_id slot_id=slot.pk %}#requirement-{{ slot.pk }}" class="decision-form correction-form">
@@ -87,9 +102,6 @@
                   <label for="reason-{{ slot.pk }}">Motivo de corrección <span class="required-mark" aria-hidden="true">*</span></label>
                   <textarea id="reason-{{ slot.pk }}" name="reason" rows="3" maxlength="1000" required{% if slot.bound_review.reason.errors %} aria-invalid="true" aria-describedby="reason-error-{{ slot.pk }}"{% endif %}>{{ slot.bound_review.reason.value|default_if_none:"" }}</textarea>
                   {% if slot.bound_review.reason.errors %}<div id="reason-error-{{ slot.pk }}" role="alert">{{ slot.bound_review.reason.errors }}</div>{% endif %}
-                  <label for="note-c-{{ slot.pk }}">Observación interna (opcional)</label>
-                  <textarea id="note-c-{{ slot.pk }}" name="internal_note" rows="2" maxlength="2000">{% if slot.bound_review.decision.value == 'correction' %}{{ slot.bound_review.internal_note.value|default_if_none:"" }}{% endif %}</textarea>
-                  {% if slot.bound_review.decision.value == 'correction' %}{{ slot.bound_review.internal_note.errors }}{% endif %}
                   <button class="button button-warning" type="submit">Marcar para corrección</button>
                 </form>
               </div>
@@ -111,16 +123,17 @@
           <div><h2>Solicitar correcciones</h2><p>{% if not can_send_corrections %}Revisa los documentos que faltan. {% endif %}Se enviarán juntos los motivos de los documentos marcados.</p></div>
           <form method="post" action="{% url 'reviewer_send_corrections' public_id=application.public_id %}">{% csrf_token %}<button class="button button-primary" type="submit"{% if not can_send_corrections %} disabled{% endif %}>Enviar solicitud de correcciones</button></form>
         {% else %}
-          <div><h2>Aprobar la documentación</h2><p>Aprueba primero todos los documentos cargados.</p></div>
+          <div><h2>Aprobar la documentación</h2>{% if not can_approve %}<p>Aprueba primero todos los documentos cargados.</p>{% endif %}</div>
           <form method="post" action="{% url 'reviewer_approve' public_id=application.public_id %}">{% csrf_token %}<button class="button button-primary" type="submit"{% if not can_approve %} disabled{% endif %}>Aprobar documentación</button></form>
         {% endif %}
       </section>
     {% endif %}
     {% if application.state == 'approved' and application.assigned_reviewer_id == user.id %}<section class="submit-panel"><div><h2>Cerrar expediente</h2></div><form method="post" action="{% url 'reviewer_close' public_id=application.public_id %}">{% csrf_token %}<button class="button button-secondary" type="submit">Cerrar expediente</button></form></section>{% endif %}
-    {% if application.state == 'approved' or application.state == 'closed' %}{% if not application.assigned_reviewer or application.assigned_reviewer_id == user.id %}<section class="submit-panel"><div><h2>Reabrir expediente</h2><p>La reapertura queda registrada y requiere un motivo.</p></div><form method="post" action="{% url 'reviewer_reopen' public_id=application.public_id %}" class="reopen-form">{% csrf_token %}<label for="reopen-reason">Motivo de reapertura</label><textarea id="reopen-reason" name="reason" rows="2" required></textarea><button class="button button-secondary" type="submit">Reabrir expediente</button></form></section>{% endif %}{% endif %}
+    {% if application.state == 'approved' or application.state == 'closed' %}{% if not application.assigned_reviewer or application.assigned_reviewer_id == user.id %}<section class="submit-panel"><div><h2>Reabrir expediente</h2></div><form method="post" action="{% url 'reviewer_reopen' public_id=application.public_id %}" class="reopen-form">{% csrf_token %}<label for="reopen-reason">Motivo de reapertura</label><textarea id="reopen-reason" name="reason" rows="2" required></textarea><button class="button button-secondary" type="submit">Reabrir expediente</button></form></section>{% endif %}{% endif %}
     {% if applicant_observations %}<section class="detail-section"><h2>Mensajes visibles al aspirante</h2><ul class="observation-list">{% for item in applicant_observations %}<li><p>{{ item.text }}</p><small>{{ item.created_at|date:"j M Y, H:i" }}</small></li>{% endfor %}</ul></section>{% endif %}
     {% if observations %}<section class="detail-section"><h2>Observaciones internas</h2><ul class="observation-list">{% for item in observations %}<li><p>{{ item.text }}</p><small>{{ item.author.get_full_name|default:item.author.email }} · {{ item.created_at|date:"j M Y, H:i" }}</small></li>{% endfor %}</ul></section>{% endif %}
     <section class="detail-section"><h2>Historial del expediente</h2><ol class="timeline">{% for event in history %}<li><span class="timeline-dot" aria-hidden="true"></span><div><strong>{{ event.get_to_state_display|default:event.to_state }}</strong><small>{{ event.created_at|date:"j M Y, H:i" }}{% if event.actor %} · {{ event.actor.get_full_name|default:event.actor.email }}{% endif %}</small>{% if event.reason %}<p>{{ event.reason }}</p>{% endif %}</div></li>{% endfor %}</ol></section>
   </div>
 </div>
+<script src="{% versioned_static 'admisiones/js/review_analysis.js' %}" defer></script>
 {% endblock %}

@@ -1,4 +1,5 @@
 import io
+import logging
 import re
 import time
 import unicodedata
@@ -14,6 +15,9 @@ from django.utils import timezone
 from PIL import Image
 
 from admisiones.models import PrevalidationResult, ProcessingJob
+from .ai_verifier import verify_document
+
+logger = logging.getLogger(__name__)
 
 
 def _plain(text):
@@ -105,15 +109,19 @@ def _finish_success(job_id, version_id, claimed_at, analyzed):
         if job.status != ProcessingJob.Status.RUNNING or job.locked_at != claimed_at:
             return False
         result = PrevalidationResult.objects.select_for_update().get(version_id=version_id)
-        result.status = analyzed["status"]
-        result.extracted_text = analyzed["text"][:500_000]
-        result.detected_type = analyzed["kind"]
-        result.extracted_identification = analyzed["identification"]
-        result.identification_matches = analyzed["matches"]
-        result.alerts = analyzed["alerts"]
-        result.rules_version = settings.OCR_RULES_VERSION
-        result.processed_at = timezone.now()
-        result.save()
+        if job.kind == ProcessingJob.Kind.AI:
+            result.ai_result = analyzed
+            result.save(update_fields=("ai_result",))
+        else:
+            result.status = analyzed["status"]
+            result.extracted_text = analyzed["text"][:500_000]
+            result.detected_type = analyzed["kind"]
+            result.extracted_identification = analyzed["identification"]
+            result.identification_matches = analyzed["matches"]
+            result.alerts = analyzed["alerts"]
+            result.rules_version = settings.OCR_RULES_VERSION
+            result.processed_at = timezone.now()
+            result.save()
         job.status = ProcessingJob.Status.DONE
         job.locked_at = None
         job.error_message = ""
@@ -121,38 +129,43 @@ def _finish_success(job_id, version_id, claimed_at, analyzed):
         return True
 
 
-def _finish_error(job_id, version_id, claimed_at):
+def _finish_error(job_id, version_id, claimed_at, *, retry=True):
     with transaction.atomic():
         job = ProcessingJob.objects.select_for_update().get(pk=job_id)
         if job.status != ProcessingJob.Status.RUNNING or job.locked_at != claimed_at:
             return False
-        if job.attempts < settings.OCR_MAX_ATTEMPTS:
+        if retry and job.attempts < _max_attempts(job.kind):
             job.status = ProcessingJob.Status.QUEUED
             job.available_at = timezone.now() + timedelta(seconds=min(300, 15 * (2 ** (job.attempts - 1))))
             job.error_message = "El procesamiento local falló; se reintentará."
         else:
             job.status = ProcessingJob.Status.FAILED
             job.error_message = "No se pudo completar el procesamiento local."
-            result = PrevalidationResult.objects.select_for_update().get(version_id=version_id)
-            result.status = PrevalidationResult.Status.ERROR
-            result.extracted_text = ""
-            result.detected_type = ""
-            result.extracted_identification = ""
-            result.identification_matches = None
-            result.alerts = [{"code": "processing_error", "message": "El procesamiento tuvo un error técnico. Continúa con la revisión manual."}]
-            result.rules_version = settings.OCR_RULES_VERSION
-            result.processed_at = timezone.now()
-            result.save()
+            if job.kind == ProcessingJob.Kind.OCR:
+                result = PrevalidationResult.objects.select_for_update().get(version_id=version_id)
+                result.status = PrevalidationResult.Status.ERROR
+                result.extracted_text = ""
+                result.detected_type = ""
+                result.extracted_identification = ""
+                result.identification_matches = None
+                result.alerts = [{"code": "processing_error", "message": "El procesamiento tuvo un error técnico. Continúa con la revisión manual."}]
+                result.rules_version = settings.OCR_RULES_VERSION
+                result.processed_at = timezone.now()
+                result.save()
         job.locked_at = None
         job.save(update_fields=("status", "available_at", "error_message", "locked_at"))
         return True
 
 
-def process_next_job():
+def _max_attempts(kind):
+    return 3 if kind == ProcessingJob.Kind.AI else settings.OCR_MAX_ATTEMPTS
+
+
+def process_next_job(kind=ProcessingJob.Kind.OCR):
     with transaction.atomic():
         now = timezone.now()
         job = ProcessingJob.objects.select_for_update(skip_locked=True).filter(
-            status=ProcessingJob.Status.QUEUED, available_at__lte=now
+            kind=kind, status=ProcessingJob.Status.QUEUED, available_at__lte=now
         ).order_by("created_at", "pk").first()
         if not job:
             return False
@@ -162,34 +175,42 @@ def process_next_job():
         job.save(update_fields=("status", "locked_at", "attempts"))
         claim = job.pk, job.version_id, now
     job_id, version_id, claimed_at = claim
+    started = time.monotonic()
     try:
         version = ProcessingJob.objects.select_related("version__requirement__application__applicant").get(pk=job_id).version
-        analysis = _analyze(version, _extract_text(version))
-    except Exception:
-        _finish_error(job_id, version_id, claimed_at)
+        analysis = verify_document(version) if kind == ProcessingJob.Kind.AI else _analyze(version, _extract_text(version))
+    except Exception as error:
+        retry = kind == ProcessingJob.Kind.OCR or isinstance(error, OSError)
+        _finish_error(job_id, version_id, claimed_at, retry=retry)
+        if kind == ProcessingJob.Kind.AI:
+            logger.warning("ai_prevalidation %s duration_seconds=%.2f",
+                           "temporary_error" if retry else "invalid_analysis", time.monotonic() - started)
     else:
-        _finish_success(job_id, version_id, claimed_at, analysis)
+        saved = _finish_success(job_id, version_id, claimed_at, analysis)
+        if saved and kind == ProcessingJob.Kind.AI:
+            logger.info("ai_prevalidation done duration_seconds=%.2f", time.monotonic() - started)
     return True
 
 
-def recover_stale_jobs():
+def recover_stale_jobs(kind=ProcessingJob.Kind.OCR):
     cutoff = timezone.now() - timedelta(minutes=settings.OCR_STALE_MINUTES)
     count = 0
     with transaction.atomic():
         jobs = ProcessingJob.objects.select_for_update(skip_locked=True).filter(
-            status=ProcessingJob.Status.RUNNING, locked_at__lt=cutoff
+            kind=kind, status=ProcessingJob.Status.RUNNING, locked_at__lt=cutoff
         )
         for job in jobs:
-            if job.attempts >= settings.OCR_MAX_ATTEMPTS:
+            if job.attempts >= _max_attempts(kind):
                 job.status = ProcessingJob.Status.FAILED
                 job.error_message = "El trabajador se interrumpió durante el procesamiento."
-                result = PrevalidationResult.objects.select_for_update().get(version=job.version)
-                result.status = PrevalidationResult.Status.ERROR
-                result.extracted_text = ""
-                result.alerts = [{"code": "processing_error", "message": "El procesamiento tuvo un error técnico. Continúa con la revisión manual."}]
-                result.rules_version = settings.OCR_RULES_VERSION
-                result.processed_at = timezone.now()
-                result.save()
+                if kind == ProcessingJob.Kind.OCR:
+                    result = PrevalidationResult.objects.select_for_update().get(version=job.version)
+                    result.status = PrevalidationResult.Status.ERROR
+                    result.extracted_text = ""
+                    result.alerts = [{"code": "processing_error", "message": "El procesamiento tuvo un error técnico. Continúa con la revisión manual."}]
+                    result.rules_version = settings.OCR_RULES_VERSION
+                    result.processed_at = timezone.now()
+                    result.save()
             else:
                 job.status = ProcessingJob.Status.QUEUED
                 job.available_at = timezone.now()

@@ -61,7 +61,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
     def sign_in(self, page, user, destination):
         page.set_default_timeout(8000)
         page.goto(f"{self.live_server_url}/ingresar/")
-        page.get_by_label("Correo electrónico o usuario:", exact=True).fill(user.email)
+        page.locator('input[name="username"]').fill(user.email)
         page.locator('input[name="password"]').fill("Fuerte-2026-Clave!")
         page.get_by_role("button", name="Ingresar").click()
         page.wait_for_url(f"**/{destination}/")
@@ -69,16 +69,23 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
     def staff_menu(self, page):
         return page.get_by_role("navigation", name="Menú de trabajo", exact=True)
 
+    def choose_option(self, page, label, option):
+        page.get_by_label(re.compile(rf"^{re.escape(label.rstrip(':'))}:?$")).click()
+        page.get_by_role("option", name=option, exact=True).click()
+
     def select_program_and_call(self, page):
-        page.get_by_label("Programa:", exact=True).select_option(label=self.program.name)
-        page.get_by_label("Convocatoria:", exact=True).select_option(label=self.call.name)
+        dialog = page.get_by_role("dialog")
+        scope = dialog if dialog.count() else page
+        for field, value in (("program", self.program.name), ("call", self.call.name)):
+            scope.locator(".select-menu").filter(has=page.locator(f'select[name="{field}"]')).get_by_role("button").click()
+            scope.get_by_role("option", name=value, exact=True).click()
 
     def register_applicant(self, page, *, first_name, last_name, email, identification_number):
         page.goto(f"{self.live_server_url}/registro/")
         page.locator('input[name="first_name"]').fill(first_name)
         page.locator('input[name="last_name"]').fill(last_name)
         page.locator('input[name="email"]').fill(email)
-        page.locator('select[name="identification_type"]').select_option("CC")
+        self.choose_option(page, "Tipo de identificación", "Cédula de ciudadanía")
         page.locator('input[name="identification_number"]').fill(identification_number)
         page.locator('input[name="phone"]').fill("3005550101")
         page.locator('input[name="password1"]').fill("Fuerte-2026-Clave!")
@@ -90,10 +97,10 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
     def register_from_admissions(self, page, *, first_name, last_name, email, identification_number):
         page.get_by_label("Primer nombre", exact=True).fill(first_name)
         page.get_by_label("Primer apellido", exact=True).fill(last_name)
-        page.get_by_label("Tipo de identificación:", exact=True).select_option("CC")
-        page.get_by_label("Número de identificación:", exact=True).fill(identification_number)
-        page.get_by_label("Correo electrónico:", exact=True).fill(email)
-        page.get_by_label("Teléfono:", exact=True).fill("03005550101")
+        self.choose_option(page, "Tipo de identificación:", "Cédula de ciudadanía")
+        page.locator('input[name="identification_number"]').fill(identification_number)
+        page.locator('input[name="email"]').fill(email)
+        page.locator('input[name="phone"]').fill("03005550101")
         self.select_program_and_call(page)
         page.get_by_role("button", name="Crear expediente", exact=True).click()
 
@@ -112,8 +119,9 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
         item = self.document(page, document_name)
         item.locator('textarea[name="reason"]').fill(reason)
         item.get_by_role("button", name="Marcar para corrección", exact=True).click()
-        expect(page.locator(".review-heading .status-in_review")).to_be_visible()
+        expect(page.locator(".review-heading-actions .status-in_review")).to_be_visible()
 
+    @override_settings(AI_PREVALIDATION_ENABLED=True)
     def test_administrator_creates_imports_and_reviews_records_without_portal_accounts(self):
         first = dict(first_name="Laura", last_name="Ríos", email="laura@example.test", identification_number="1234567890")
         second = dict(first_name="Mateo", last_name="López", email="mateo@example.test", identification_number="0012345679")
@@ -146,10 +154,10 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 reviewer.go_forward()
                 expect(reviewer).to_have_url(first_url)
                 expect(reviewer.get_by_role("heading", name="Laura Ríos", exact=True)).to_be_visible()
-                expect(reviewer.locator(".review-heading .status-draft")).to_be_visible()
+                expect(reviewer.locator(".review-heading-actions .status-draft")).to_be_visible()
                 first_file = self.upload_from_admissions(reviewer, IDENTITY, self.pdf_paths[0])
 
-                self.staff_menu(reviewer).get_by_role("link", name="Nuevo aspirante", exact=True).click()
+                reviewer.goto(f"{self.live_server_url}/admisiones/aspirantes/nuevo/")
                 self.register_from_admissions(reviewer, **second)
                 reviewer.wait_for_url("**/admisiones/expedientes/*/")
                 second_url = reviewer.url
@@ -159,7 +167,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 second_file = self.upload_from_admissions(reviewer, IDENTITY, self.pdf_paths[5])
                 self.assertNotEqual(first_file, second_file)
 
-                self.staff_menu(reviewer).get_by_role("link", name="Nuevo aspirante", exact=True).click()
+                reviewer.goto(f"{self.live_server_url}/admisiones/aspirantes/nuevo/")
                 self.register_from_admissions(reviewer, **first)
                 first_path = first_url.removeprefix(self.live_server_url)
                 duplicate = reviewer.get_by_role("link", name="Ver expediente existente", exact=True)
@@ -179,44 +187,77 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                     self.assertEqual(downloaded.status, 200)
                     self.assertEqual(downloaded.body(), path.read_bytes())
 
-                self.staff_menu(reviewer).get_by_role("link", name="Importar aspirantes", exact=True).click()
                 for import_number in range(2):
+                    reviewer.goto(f"{self.live_server_url}/admisiones/aspirantes/importar/")
                     self.select_program_and_call(reviewer)
-                    reviewer.get_by_label("Archivo CSV:", exact=True).set_input_files(csv_upload)
+                    reviewer.locator('input[name="file"]').set_input_files(csv_upload)
                     reviewer.get_by_role("button", name="Vista previa", exact=True).click()
-                    expect(reviewer.get_by_role("heading", name="Vista previa", exact=True)).to_be_visible()
+                    expect(reviewer.locator("#import-counts")).to_be_visible()
                     expect(reviewer.get_by_text("Error", exact=True).first).to_be_visible()
                     expect(reviewer.get_by_text("Existente", exact=True).first).to_be_visible()
                     if import_number == 0:
                         expect(reviewer.get_by_text("Válida", exact=True).first).to_be_visible()
+                    else:
+                        expect(reviewer.get_by_role("button", name="Confirmar importación", exact=True)).to_be_disabled()
+                        break
                     reviewer.get_by_role("button", name="Confirmar importación", exact=True).click()
-                    expect(reviewer.get_by_role("heading", name="Importación completada", exact=True)).to_be_visible()
                     counts = reviewer.locator("#import-counts")
                     expect(counts.locator('dt:text-is("Expedientes creados") + dd')).to_have_text("1" if import_number == 0 else "0")
                     expect(counts.locator('dt:text-is("Expedientes existentes") + dd')).to_have_text("1" if import_number == 0 else "2")
                     expect(counts.locator('dt:text-is("Filas con errores") + dd')).to_have_text("2")
-                    if import_number == 0:
-                        reviewer.get_by_role("link", name="Importar otro archivo", exact=True).click()
+                    reviewer.get_by_role("link", name="Ver aspirantes", exact=True).click()
 
                 reviewer.goto(first_url)
                 self.upload_from_admissions(reviewer, SABER, self.pdf_paths[1])
                 self.upload_from_admissions(reviewer, GRADUATION, self.pdf_paths[2])
                 reviewer.get_by_role("button", name="Enviar a revisión", exact=True).click()
-                expect(reviewer.locator(".review-heading .status-submitted")).to_be_visible()
-                reviewer.get_by_role("button", name="Asignarme expediente", exact=True).click()
-                expect(reviewer.locator(".review-heading .status-in_review")).to_be_visible()
+                expect(reviewer.locator(".review-heading-actions .status-submitted")).to_be_visible()
+                reviewer.get_by_role("button", name="Iniciar revisión", exact=True).click()
+                expect(reviewer.locator(".review-heading-actions .status-in_review")).to_be_visible()
+                self.upload_from_admissions(reviewer, SABER, self.pdf_paths[1], replace=True)
+                expect(self.document(reviewer, SABER).locator(".preview-toolbar")).to_contain_text("v2")
+                identity = self.document(reviewer, IDENTITY)
+                result_panel = identity.get_by_role("region", name="Pre-revisión con IA")
+                expect(result_panel.get_by_text("En cola para análisis", exact=True)).to_be_visible()
+                ring = result_panel.locator(".ai-progress-ring")
+                expect(ring).to_be_visible()
+                expect(ring).to_have_css("animation-name", "ai-progress-spin")
+                reviewer.emulate_media(reduced_motion="reduce")
+                expect(ring).to_have_css("animation-name", "none")
+                reviewer.emulate_media(reduced_motion="no-preference")
+                version_id = result_panel.get_attribute("data-ai-version")
+                reason = identity.locator('textarea[name="reason"]')
+                reason.fill("Motivo escrito mientras se analiza.")
+
+                def finish_analysis(route):
+                    response = route.fetch()
+                    result = (
+                        f'<section data-ai-version="{version_id}"><p class="automatic-status">Requiere revisión</p>'
+                        '<p>Nombre detectado: Persona de prueba</p></section>'
+                    )
+                    body = re.sub(rf'<section\b[^>]*data-ai-version="{version_id}"[^>]*>.*?</section>',
+                                  result, response.text(), flags=re.S)
+                    route.fulfill(response=response, body=body)
+
+                analysis_url = re.compile(r"\?analisis=1$")
+                reviewer.route(analysis_url, finish_analysis)
+                expect(result_panel).to_contain_text("Nombre detectado: Persona de prueba", timeout=12000)
+                expect(ring).to_have_count(0)
+                expect(reason).to_have_value("Motivo escrito mientras se analiza.")
+                reviewer.unroute(analysis_url, finish_analysis)
                 self.mark_correction(reviewer, IDENTITY, "Presenta la identificación completa.")
                 self.mark_correction(reviewer, SABER, "Adjunta el resultado completo de las pruebas.")
                 graduation = self.document(reviewer, GRADUATION)
                 graduation.get_by_role("button", name="Aprobar documento", exact=True).click()
                 expect(graduation.locator(".status-approved")).to_be_visible()
+                expect(graduation.get_by_role("button", name="Reemplazar documento", exact=True)).to_have_count(0)
                 reviewer.get_by_role("button", name="Enviar solicitud de correcciones", exact=True).click()
-                expect(reviewer.locator(".review-heading .status-correction")).to_be_visible()
+                expect(reviewer.locator(".review-heading-actions .status-correction")).to_be_visible()
 
                 self.upload_from_admissions(reviewer, IDENTITY, self.pdf_paths[3], replace=True)
                 self.upload_from_admissions(reviewer, SABER, self.pdf_paths[4], replace=True)
                 reviewer.get_by_role("button", name="Enviar a revisión", exact=True).click()
-                reviewer.get_by_role("button", name="Continuar revisión", exact=True).click()
+                reviewer.get_by_role("button", name="Iniciar revisión", exact=True).click()
                 expect(graduation.locator(".status-approved")).to_be_visible()
                 for name in (IDENTITY, SABER):
                     item = self.document(reviewer, name)
@@ -224,7 +265,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                     item.get_by_role("button", name="Aprobar documento", exact=True).click()
                     expect(item.locator(".status-approved")).to_be_visible()
                 reviewer.get_by_role("button", name="Aprobar documentación", exact=True).click()
-                expect(reviewer.locator(".review-heading .status-approved")).to_be_visible()
+                expect(reviewer.locator(".review-heading-actions .status-approved")).to_be_visible()
 
                 reviewer.set_viewport_size({"width": 390, "height": 844})
                 reviewer.get_by_role("button", name="Abrir menú de trabajo", exact=True).press("Enter")
@@ -261,7 +302,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 search.fill("configuracion")
                 expect(menu.get_by_role("link")).to_have_count(3)
                 page.get_by_role("button", name="Cerrar búsqueda del menú", exact=True).click()
-                expect(menu.get_by_role("link")).to_have_count(8)
+                expect(menu.get_by_role("link")).to_have_count(6)
 
                 page.set_viewport_size({"width": 390, "height": 844})
                 trigger = page.get_by_role("button", name="Abrir menú de trabajo", exact=True)
@@ -275,13 +316,15 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 expect(drawer).not_to_be_visible()
                 expect(trigger).to_be_focused()
                 trigger.click()
-                drawer.get_by_role("link", name="Nuevo aspirante", exact=True).click()
+                drawer.get_by_role("link", name="Aspirantes", exact=True).click()
+                new_applicant = page.get_by_role("link", name="Nuevo aspirante", exact=True)
+                new_applicant.click()
                 form = page.get_by_role("dialog", name="Nuevo aspirante", exact=True)
                 expect(drawer).not_to_be_visible()
                 expect(form.get_by_label("Primer nombre", exact=True)).to_be_focused()
                 form.get_by_role("button", name="Cancelar", exact=True).click()
                 expect(form).not_to_be_visible()
-                expect(trigger).to_be_focused()
+                expect(new_applicant).to_be_focused()
                 trigger.click()
                 drawer.get_by_role("link", name="Convocatorias", exact=True).click()
                 expect(page.get_by_role("heading", name="Convocatorias", exact=True, level=1)).to_be_visible()
@@ -325,15 +368,13 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                     expect(page.get_by_role("rowheader", name=value, exact=True)).to_be_visible()
 
                 menu.get_by_role("link", name="Requisitos documentales", exact=True).click()
-                expect(page.get_by_text("Los cambios se aplican a expedientes nuevos.", exact=False)).to_be_visible()
                 page.get_by_role("link", name="Crear requisito documental", exact=True).click()
                 page.get_by_label("Nombre del requisito:", exact=True).fill("Constancia escolar")
                 page.get_by_label("Código:", exact=True).fill("constancia")
-                page.get_by_label("Convocatoria:", exact=True).select_option(label="Ingreso 2028-1")
-                page.get_by_role("checkbox", name="Otro documento", exact=True).check()
+                self.choose_option(page, "Convocatoria:", "Ingreso 2028-1")
                 page.get_by_role("button", name="Guardar cambios", exact=True).click()
                 page.get_by_role("link", name="Editar Constancia escolar", exact=True).click()
-                expect(page.get_by_role("checkbox", name="Otro documento", exact=True)).to_be_checked()
+                expect(page.get_by_label("Convocatoria:", exact=True)).to_have_text("Ingreso 2028-1")
                 page.get_by_role("checkbox", name="Activo", exact=False).uncheck()
                 page.get_by_role("button", name="Guardar cambios", exact=True).click()
                 row = page.get_by_role("row").filter(has=page.get_by_role("rowheader", name="Constancia escolar", exact=False))
@@ -385,7 +426,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 page.wait_for_function("() => document.querySelector('.filter-disclosure').open")
                 self.assertTrue(filters.evaluate("element => element.open"))
                 state = page.get_by_label("Estado", exact=True)
-                expect(state).to_have_css("border-radius", "12px")
+                expect(state).to_have_css("border-radius", "10px")
                 expect(page.get_by_role("searchbox")).to_be_visible()
                 state.focus()
                 page.set_viewport_size({"width": 390, "height": 844})
@@ -393,6 +434,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
             finally:
                 browser.close()
 
+    @override_settings(AI_PREVALIDATION_ENABLED=True)
     def test_applicant_receives_one_correction_notice_and_replaces_both_files(self):
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
@@ -414,11 +456,12 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 applicant.get_by_role("button", name="Enviar expediente").click()
                 applicant.wait_for_load_state("domcontentloaded")
                 applicant.locator(".page-heading .status-submitted").wait_for()
+                expect(applicant.get_by_role("region", name="Pre-revisión con IA")).to_have_count(0)
 
                 reviewer_context = browser.new_context(viewport={"width": 1280, "height": 900})
                 reviewer = reviewer_context.new_page()
                 self.sign_in(reviewer, self.reviewer, "admisiones")
-                reviewer.get_by_role("link", name="Abrir expediente", exact=False).click()
+                reviewer.locator(".data-table a[href*='/admisiones/expedientes/']").click()
                 review_url = reviewer.url
                 reviewer.get_by_role("button", name="Asignarme expediente").click()
                 identity_reason = "El archivo debe mostrar el documento completo."
@@ -432,7 +475,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 graduation.get_by_role("button", name="Aprobar documento", exact=True).click()
                 expect(graduation.locator(".status-approved")).to_be_visible()
                 reviewer.get_by_role("button", name="Enviar solicitud de correcciones", exact=True).click()
-                expect(reviewer.locator(".review-heading .status-correction")).to_be_visible()
+                expect(reviewer.locator(".review-heading-actions .status-correction")).to_be_visible()
 
                 applicant.reload()
                 applicant.get_by_text(identity_reason, exact=True).first.wait_for()
@@ -465,7 +508,7 @@ class AdmissionsBrowserFlowTests(StaticLiveServerTestCase):
                 approve_application.wait_for(state="visible")
                 approve_application.click()
                 reviewer.wait_for_load_state("domcontentloaded")
-                reviewer.locator(".review-heading .status-approved").wait_for()
+                reviewer.locator(".review-heading-actions .status-approved").wait_for()
 
                 applicant.reload()
                 applicant.locator(".page-heading .status-approved").wait_for()

@@ -1,5 +1,6 @@
 import io
 import tempfile
+import zipfile
 from importlib import import_module
 from pathlib import Path
 
@@ -7,10 +8,12 @@ import pymupdf
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from PIL import Image
 
-from admisiones.models import Applicant, Call, Program, Review, User
-from admisiones.services.workflow import create_application
+from admisiones.models import Applicant, Application, Call, Program, Review, User, applicant_file_key
+from admisiones.services.files import store_version
+from admisiones.services.workflow import create_application, create_staff_application
 
 
 def valid_pdf(text="DOCUMENTO DE IDENTIDAD C.C. 1234567890"):
@@ -119,3 +122,88 @@ class PrivateDocumentVersionTests(TestCase):
         self.assertTrue(callable(store))
         with self.assertRaises(PermissionDenied):
             store(self.slot, self.upload(), self.other)
+
+
+class StandardNamesAndArchiveTests(TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        storage = override_settings(PRIVATE_MEDIA_ROOT=Path(temp.name))
+        storage.enable()
+        self.addCleanup(storage.disable)
+        self.admin = User.objects.create_superuser(email="admin-carpeta", password="Clave-admin-de-prueba!")
+        self.applicant = Applicant.objects.create(
+            email="carpeta@example.test", first_name="Ana", last_name="Acosta",
+            identification_type="CC", identification_number="10.012-34567", phone="3000000000",
+        )
+        self.program = Program.objects.create(name="Carpeta")
+        self.call = Call.objects.create(name="Convocatoria carpeta")
+        self.application = create_staff_application(self.admin, {}, self.program, self.call, applicant=self.applicant)
+        self.identity = self.application.requirements.get(code="identity")
+        self.client.force_login(self.admin)
+
+    def upload(self, data=None):
+        return SimpleUploadedFile("identidad.pdf", data if data is not None else valid_pdf(), content_type="application/pdf")
+
+    def archive_url(self):
+        return reverse("application_zip", kwargs={"public_id": self.application.public_id})
+
+    def test_file_key_removes_punctuation_and_falls_back_to_public_id(self):
+        self.assertEqual(applicant_file_key(self.applicant), "1001234567")
+        without_number = Applicant(identification_number="", phone="3000000000")
+        self.assertEqual(applicant_file_key(without_number), str(without_number.public_id)[:8])
+
+    def test_standard_name_uses_identification_code_version_and_extension(self):
+        version = store_version(self.identity, self.upload(), self.admin)
+        self.assertEqual(version.standard_name, "1001234567_identity_v1.pdf")
+
+    def test_download_uses_the_standard_name(self):
+        version = store_version(self.identity, self.upload(), self.admin)
+        response = self.client.get(reverse("document_file", kwargs={"version_id": version.pk}), {"download": "1"})
+        self.assertIn("1001234567_identity_v1.pdf", response["Content-Disposition"])
+        b"".join(response.streaming_content)
+
+    def test_archive_contains_only_current_versions_with_standard_names(self):
+        store_version(self.identity, self.upload(), self.admin)
+        store_version(self.identity, self.upload(valid_pdf("DOCUMENTO DE IDENTIDAD C.C. 1234567890 nuevo")), self.admin)
+        response = self.client.get(self.archive_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/zip")
+        archive = zipfile.ZipFile(io.BytesIO(b"".join(response.streaming_content)))
+        self.assertEqual(archive.namelist(), ["1001234567_identity_v2.pdf"])
+
+    def test_application_without_documents_does_not_send_an_empty_archive(self):
+        response = self.client.get(self.archive_url())
+        self.assertRedirects(response, reverse("reviewer_application", kwargs={"public_id": self.application.public_id}))
+
+    def test_administrator_replaces_pending_file_in_review_but_cannot_replace_approval(self):
+        original = store_version(self.identity, self.upload(), self.admin)
+        Application.objects.filter(pk=self.application.pk).update(state=Application.State.IN_REVIEW)
+        replacement = store_version(self.identity, self.upload(), self.admin)
+        self.assertEqual(replacement.version_number, original.version_number + 1)
+        self.assertEqual(self.identity.versions.count(), 2)
+        Review.objects.create(version=replacement, reviewer=self.admin, decision=Review.Decision.APPROVE)
+        with self.assertRaises(ValidationError):
+            store_version(self.identity, self.upload(), self.admin)
+
+    def test_archive_is_private_to_admissions(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(self.archive_url()).status_code, 302)
+        applicant_user = User.objects.create_user(email="ana-carpeta@example.test", password="Fuerte-2026-Clave!", role=User.Role.APPLICANT)
+        self.client.force_login(applicant_user)
+        self.assertEqual(self.client.get(self.archive_url()).status_code, 403)
+
+    def test_portal_draft_is_not_visible_to_reviewers(self):
+        portal_user = User.objects.create_user(email="portal-carpeta@example.test", password="Fuerte-2026-Clave!", role=User.Role.APPLICANT)
+        Applicant.objects.create(
+            user=portal_user, email=portal_user.email, identification_type="CC", identification_number="5550001", phone="3000000001",
+        )
+        draft = create_application(portal_user, self.program, Call.objects.create(name="Convocatoria portal"))
+        reviewer = User.objects.create_user(email="rev-carpeta@example.test", password="Fuerte-2026-Clave!", role=User.Role.REVIEWER)
+        self.client.force_login(reviewer)
+        url = reverse("application_zip", kwargs={"public_id": draft.public_id})
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.client.force_login(self.admin)
+        detail_url = reverse("reviewer_application", kwargs={"public_id": draft.public_id})
+        self.assertContains(self.client.get(detail_url), "Borrador")
+        self.assertContains(self.client.get(reverse("administration_home")), detail_url)

@@ -173,7 +173,6 @@ class ReviewDecisionForm(forms.Form):
     version_id = forms.IntegerField(widget=forms.HiddenInput)
     decision = forms.ChoiceField(choices=Review.Decision.choices, widget=forms.HiddenInput)
     reason = forms.CharField(label="Motivo de corrección", max_length=1000, required=False, widget=forms.Textarea(attrs={"rows": 3}))
-    internal_note = forms.CharField(label="Observación interna", max_length=2000, required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
     def clean(self):
         cleaned = super().clean()

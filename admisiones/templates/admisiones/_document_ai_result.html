@@ -1,0 +1,19 @@
+{% if slot.ai_summary %}{% with ai=slot.ai_summary %}
+  <section class="automatic-review" aria-label="Pre-revisión con IA" aria-live="polite" data-ai-version="{{ slot.current_version_id }}"{% if ai.pending %} data-ai-pending{% endif %}>
+    <div class="section-label">Pre-revisión con IA</div>
+    <p class="automatic-status{% if ai.pending %} ai-progress-status{% endif %}">{% if ai.pending %}<span class="ai-progress-ring" aria-hidden="true"></span>{% endif %}{{ ai.label }}</p>
+    {% if ai.modelo %}
+      <ul class="alert-list">
+        <li><strong>Tipo:</strong> {% if ai.tipo_documento_correcto is True %}Corresponde{% elif ai.tipo_documento_correcto is False %}Tipo distinto{% else %}Sin determinar{% endif %}</li>
+        <li><strong>Legibilidad:</strong> {% if ai.es_legible is True %}Legible{% elif ai.es_legible is False %}Se detectaron problemas{% else %}Sin determinar{% endif %}</li>
+        <li><strong>Identificación detectada:</strong> {{ ai.identificacion_detectada|default:"No detectada" }}{% if ai.identificacion_detectada %} · {% if ai.identification_matches is True %}Coincide{% elif ai.identification_matches is False %}No coincide{% else %}Coincidencia sin determinar{% endif %}{% endif %}</li>
+        <li><strong>Nombre detectado:</strong> {{ ai.nombre_detectado|default:"No detectado" }}{% if ai.nombre_detectado %} · {% if ai.name_matches is True %}Coincide{% elif ai.name_matches is False %}No coincide{% else %}Coincidencia sin determinar{% endif %}{% endif %}</li>
+      </ul>
+      {% if not ai.completo %}<p>Se analizaron {{ ai.paginas_revisadas }} páginas antes del límite de tiempo.</p>{% endif %}
+      {% if ai.identidad_ambigua %}<p>Se encontraron datos de identidad distintos entre páginas.</p>{% endif %}
+      {% if ai.diagnostico %}<p><strong>Diagnóstico:</strong> {{ ai.diagnostico }}</p>{% endif %}
+    {% elif ai.pending %}
+      <p class="subtle-text">El resultado aparecerá aquí cuando termine el análisis.</p>
+    {% endif %}
+  </section>
+{% endwith %}{% endif %}

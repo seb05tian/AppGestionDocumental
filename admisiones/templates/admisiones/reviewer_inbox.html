@@ -19,7 +19,7 @@
         <td data-label="Aspirante"><strong>{{ application.applicant.get_full_name }}</strong><small>{{ application.applicant.get_identification_type_display }} · {{ application.applicant.identification_number }}</small></td>
         <td data-label="Programa / convocatoria">{{ application.program.name }}<small>{{ application.call.name }}</small></td>
         <td data-label="Estado"><span class="status status-{{ application.state }}">{{ application.get_state_display }}</span></td>
-        <td data-label="Documentos">{{ application.approved_count }} aprobados · {{ application.uploaded_count }}/{{ application.required_count }} cargados</td>
+        <td data-label="Documentos">{{ application.approved_count }}/{{ application.required_count }} aprobados<small>{{ application.uploaded_count }}/{{ application.required_count }} cargados</small></td>
         <td data-label="Alertas">{% if application.alert_count %}<span class="status status-alert">{{ application.alert_count }} con alerta</span>{% else %}<span class="subtle-text">Sin alertas</span>{% endif %}</td>
         <td data-label="Enviado">{% if application.submitted_at %}{{ application.submitted_at|date:"j M Y" }}{% else %}—{% endif %}</td>
         <td data-label="Revisor">{% if application.assigned_reviewer %}{{ application.assigned_reviewer.get_full_name|default:application.assigned_reviewer.email }}{% else %}<span class="subtle-text">Sin asignar</span>{% endif %}</td>

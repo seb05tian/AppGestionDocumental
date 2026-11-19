@@ -1,4 +1,4 @@
-{% load asset_urls %}
+{% load asset_urls static %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>{% block title %}Asistente de revisión documental{% endblock %}</title>
+  <link rel="preload" href="{% static 'admisiones/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% versioned_static 'admisiones/css/app.css' %}">
 </head>
 <body>
@@ -39,7 +40,7 @@
       {% else %}
         {% if request.resolver_match.url_name != 'login' %}<a href="{% url 'login' %}">Iniciar sesión</a>{% endif %}
         <a href="{% url 'claim_request' %}">Vincular mi expediente</a>
-        {% if request.resolver_match.url_name != 'register' %}<a class="button button-small" href="{% url 'register' %}">Crear cuenta</a>{% endif %}
+        {% if request.resolver_match.url_name != 'register' %}<a class="button button-accent button-small" href="{% url 'register' %}">Crear cuenta</a>{% endif %}
       {% endif %}
     </nav>
   </header>
@@ -49,6 +50,8 @@
   </main>
 <script src="{% versioned_static 'admisiones/js/toast.js' %}" defer></script>
 <script src="{% versioned_static 'admisiones/js/profile_menu.js' %}" defer></script>
+<script src="{% versioned_static 'admisiones/js/topbar.js' %}" defer></script>
 <script src="{% versioned_static 'admisiones/js/select_menu.js' %}" defer></script>
+<script src="{% versioned_static 'admisiones/js/icon_tooltip.js' %}" defer></script>
 </body>
 </html>

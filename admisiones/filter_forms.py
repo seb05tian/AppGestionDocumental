@@ -33,7 +33,7 @@ class QueueFilters(ListingFilters):
     assignment = forms.ChoiceField(label="Asignación", required=False, choices=[
         ("", "Todas"), ("mine", "A mí"), ("unassigned", "Sin asignar"), ("others", "A otros"),
     ])
-    alerts = forms.ChoiceField(label="Alertas automáticas", required=False, choices=[
+    alerts = forms.ChoiceField(label="Alertas", required=False, choices=[
         ("", "Todas"), ("yes", "Con alertas"), ("no", "Sin alertas"),
     ])
 

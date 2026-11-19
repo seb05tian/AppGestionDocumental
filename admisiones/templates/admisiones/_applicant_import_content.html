@@ -71,7 +71,7 @@
               </td>
               <td data-label="Detalle">
                 {% if row.message %}<p>{{ row.message }}</p>{% endif %}
-                {% if row.application.visible_to_reviewer %}<a href="{% url 'reviewer_application' public_id=row.application.public_id %}">Ver expediente</a>
+                {% if row.application and user.role == 'administrator' or row.application.visible_to_reviewer %}<a href="{% url 'reviewer_application' public_id=row.application.public_id %}">Ver expediente</a>
                 {% elif row.person %}<a href="{% url 'applicant_detail' public_id=row.person.public_id %}">Ver aspirante</a>{% endif %}
               </td>
             </tr>
