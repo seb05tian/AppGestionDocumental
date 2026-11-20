@@ -110,8 +110,30 @@ p { max-width: 70ch; text-wrap: pretty; }
 .auth-heading h1 { margin: 0; }
 .auth-heading p { margin: var(--space-2) 0 0; color: var(--ink-soft); }
 .auth-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2) var(--space-5); margin: 0; color: var(--ink-soft); font-size: .92rem; }
+.auth-split { display: grid; max-width: 1040px; margin: 0 auto; }
+.auth-media { display: none; }
+@media (min-width: 900px) {
+  /* One split card: the photo bleeds to the left edge, the form lives on the right without a nested card. */
+  .auth-split { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: min(620px, calc(100dvh - var(--topbar-height) - 2 * var(--space-10))); margin-top: var(--space-4); overflow: clip; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 18px 48px rgb(17 43 78 / 12%); }
+  .auth-split .auth-page { align-content: center; justify-items: stretch; max-width: none; margin: 0; padding: var(--space-10) clamp(32px, 4vw, 56px); }
+  .auth-split .auth-heading { text-align: left; }
+  .auth-split .auth-panel { padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  .auth-split .auth-links { justify-content: flex-start; }
+  .auth-media { display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-8); color: #fff; }
+  .auth-photo {
+    background: linear-gradient(180deg, rgb(17 43 78 / 20%) 0%, rgb(17 43 78 / 60%) 55%, rgb(17 43 78) 100%), url("../img/login-archivo-1600.webp") 40% center / cover no-repeat;
+    background-image: linear-gradient(180deg, rgb(17 43 78 / 20%) 0%, rgb(17 43 78 / 60%) 55%, rgb(17 43 78) 100%), image-set(url("../img/login-archivo-1600.webp") 1x, url("../img/login-archivo-2000.webp") 2x);
+  }
+  .auth-media h2 { max-width: 16ch; margin: 0 0 var(--space-3); color: #fff; font-size: 1.6rem; line-height: 1.2; }
+  .auth-media p { max-width: 34ch; margin: 0; color: rgb(255 255 255 / 85%); }
+  /* Register: the form is long, so the photo stays in view while it scrolls. */
+  .auth-split-wide { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); max-width: 1180px; min-height: 0; }
+  .auth-split-wide .auth-media { display: block; padding: 0; background: var(--navy-deep); }
+  .auth-media-frame { position: sticky; top: var(--topbar-height); display: flex; height: max(360px, calc(100dvh - var(--topbar-height) - 2 * var(--space-10))); flex-direction: column; justify-content: flex-end; padding: var(--space-8); }
+}
 .auth-panel, .narrow-panel { width: 100%; min-width: 0; padding: clamp(24px, 4vw, 36px); background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }
 .auth-panel h2 { margin-bottom: var(--space-6); }
+.auth-panel .form-section-heading { margin-bottom: 0; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-5); }
 .form-section-heading { grid-column: 1 / -1; margin: 0; padding-top: var(--space-5); border-top: 1px solid var(--line); color: var(--navy); font-size: .95rem; }
 .form-section-heading:first-child { margin-top: 0; padding-top: 0; border-top: 0; }

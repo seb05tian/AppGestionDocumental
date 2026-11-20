@@ -1,6 +1,11 @@
 {% extends "admisiones/base.html" %}
 {% block title %}Ingresar · Asistente de revisión documental{% endblock %}
 {% block content %}
+<div class="auth-split">
+<aside class="auth-media auth-photo">
+  <h2>Revisión documental de admisiones</h2>
+  <p>Consulta tus solicitudes, carga tus documentos y sigue cada revisión.</p>
+</aside>
 <div class="auth-page">
   <header class="auth-heading">
     <h1>Ingresar</h1>
@@ -17,5 +22,6 @@
     <a href="{% url 'password_reset' %}">Olvidé mi contraseña</a>
     <a href="{% url 'register' %}">Crear cuenta de aspirante</a>
   </nav>
+</div>
 </div>
 {% endblock %}

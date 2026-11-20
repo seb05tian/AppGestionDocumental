@@ -1,6 +1,13 @@
 {% extends "admisiones/base.html" %}
 {% block title %}Crear cuenta · Asistente de revisión documental{% endblock %}
 {% block content %}
+<div class="auth-split auth-split-wide">
+<aside class="auth-media">
+  <div class="auth-media-frame auth-photo">
+    <h2>Revisión documental de admisiones</h2>
+    <p>Con tu cuenta creas solicitudes, cargas tus documentos y recibes las correcciones de admisiones.</p>
+  </div>
+</aside>
 <div class="auth-page auth-wide">
   <header class="auth-heading">
     <h1>Crear cuenta</h1>
@@ -33,5 +40,6 @@
     </form>
   </section>
   <p class="auth-links">¿Ya tienes cuenta? <a href="{% url 'login' %}">Ingresar</a></p>
+</div>
 </div>
 {% endblock %}
